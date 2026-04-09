@@ -1,4 +1,4 @@
-import React, { ReactNode, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Sidebar from './Sidebar';
 
 interface Props { title: string; subtitle?: string; children: ReactNode; actions?: ReactNode; }

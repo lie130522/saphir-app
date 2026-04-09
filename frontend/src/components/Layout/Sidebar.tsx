@@ -1,4 +1,4 @@
-import React from 'react';
+import { Fragment } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import translations from '../../i18n/translations';
@@ -52,7 +52,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {items.map((item, index) => {
           const showSection = item.section && (index === 0 || items[index - 1].section !== item.section);
           return (
-            <React.Fragment key={item.to}>
+            <Fragment key={item.to}>
               {showSection && <div className="nav-section-title">{item.section}</div>}
               <NavLink 
                 to={item.to} 
@@ -62,7 +62,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <span className="sidebar-icon">{item.icon}</span>
                 {t[item.labelKey || '']}
               </NavLink>
-            </React.Fragment>
+            </Fragment>
           );
         })}
       </div>
