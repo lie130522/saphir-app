@@ -5,6 +5,7 @@ services:
     plan: free
     envVars:
       - key: DATABASE_URL
+        value: postgresql://postgres.kodtjpvocpvwepyvrpnt:Saphir%402026S@aws-1-eu-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true
       - key: JWT_SECRET
         generateValue: true
       - key: PORT
