@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/database');
 const { authenticate, requireRole } = require('../middlewares/auth');
-const { sendVerificationCode } = require('../services/emailService');
+const { sendVerificationCode, sendInvitationEmail } = require('../services/emailService');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'saphir_secret_2024';
@@ -53,16 +53,32 @@ router.get('/users', authenticate, requireRole('admin'), async (req, res) => {
 
 // POST /api/auth/users - admin only
 router.post('/users', authenticate, requireRole('admin'), async (req, res) => {
-  const { nom, email, password, role, telephone } = req.body;
-  if (!nom || !email || !password || !role) return res.status(400).json({ error: 'Champs requis manquants' });
+  const { nom, email, password, role, telephone, sendInvite } = req.body;
+  if (!nom || !email || !role) return res.status(400).json({ error: 'Champs requis manquants' });
+  
+  // If invite is requested, we can ignore the provided password and generate a random one
+  let finalPassword = password;
+  if (sendInvite) {
+    // Generate an 8-character random password
+    finalPassword = Math.random().toString(36).slice(-8);
+  }
+
+  if (!finalPassword) return res.status(400).json({ error: 'Mot de passe requis' });
+
   try {
-    const hash = bcrypt.hashSync(password, 10);
+    const hash = bcrypt.hashSync(finalPassword, 10);
     const result = await pool.query(
       'INSERT INTO users (nom, email, password, role, telephone) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [nom, email, hash, role, telephone || null]
     );
+
+    if (sendInvite) {
+      await sendInvitationEmail(email, finalPassword, nom);
+    }
+
     res.status(201).json({ id: result.rows[0].id, nom, email, role, telephone });
   } catch (e) {
+    console.error(e);
     res.status(400).json({ error: 'Email déjà utilisé ou erreur serveur' });
   }
 });

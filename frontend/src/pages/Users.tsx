@@ -14,7 +14,8 @@ export default function Users() {
     email: '',
     telephone: '',
     role: 'consultant' as User['role'],
-    password: ''
+    password: '',
+    sendInvite: true
   });
 
   const loadUsers = async () => {
@@ -38,7 +39,8 @@ export default function Users() {
         email: u.email,
         telephone: u.telephone || '',
         role: u.role,
-        password: '' // Don't show password, only needed if changing
+        password: '', // Don't show password, only needed if changing
+        sendInvite: false
       });
     } else {
       setFormData({
@@ -47,7 +49,8 @@ export default function Users() {
         email: '',
         telephone: '',
         role: 'consultant',
-        password: ''
+        password: '',
+        sendInvite: true
       });
     }
     setIsModalOpen(true);
@@ -157,9 +160,33 @@ export default function Users() {
                     <option value="admin">Administrateur</option>
                   </select>
                 </div>
+                {!formData.id && (
+                  <div className="form-group flex items-center gap-2">
+                    <input 
+                      type="checkbox" 
+                      id="sendInvite" 
+                      title="Envoyer une invitation par e-mail"
+                      checked={formData.sendInvite} 
+                      onChange={e => setFormData({...formData, sendInvite: e.target.checked})} 
+                    />
+                    <label htmlFor="sendInvite" className="form-label mb-0 cursor-pointer">
+                      Envoyer une invitation par e-mail (Mot de passe auto-généré)
+                    </label>
+                  </div>
+                )}
                 <div className="form-group">
                   <label className="form-label">{formData.id ? 'Mot de passe (laisser vide pour ne pas modifier)' : 'Mot de passe *'}</label>
-                  <input type="password" title="Mot de passe" className="form-input" required={!formData.id} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} minLength={6} />
+                  <input 
+                    type="password" 
+                    title="Mot de passe" 
+                    className="form-input" 
+                    required={!formData.id && !formData.sendInvite} 
+                    disabled={!formData.id && formData.sendInvite}
+                    placeholder={!formData.id && formData.sendInvite ? 'Généré automatiquement' : ''}
+                    value={formData.password} 
+                    onChange={e => setFormData({...formData, password: e.target.value})} 
+                    minLength={6} 
+                  />
                 </div>
               </div>
               <div className="modal-footer">
