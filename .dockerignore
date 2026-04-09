@@ -1,0 +1,9 @@
+node_modules
+.npm
+.env
+.git
+uploads/
+saphir.db
+saphir.db-wal
+saphir.db-shm
+frontend/dist/

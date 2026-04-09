@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: saphir-app
+    env: docker
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromConfig: DATABASE_URL
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 3001

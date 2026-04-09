@@ -1,0 +1,7 @@
+node_modules
+.npm
+saphir.db
+saphir.db-shm
+saphir.db-wal
+.env
+uploads/
