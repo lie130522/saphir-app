@@ -1,5 +1,6 @@
-import { Fragment } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import API from '../../api/client'
 import { useAuth } from '../../contexts/AuthContext';
 import translations from '../../i18n/translations';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -39,7 +40,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    API.get('/settings').then(res => {
+    API.get('/settings').then((res: any) => {
       if (res.data.company_logo) setLogoUrl(res.data.company_logo);
     }).catch(() => {});
   }, []);
