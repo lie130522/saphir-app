@@ -36,15 +36,25 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const items = navItems.filter(i => !i.adminOnly || isAdmin);
 
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    API.get('/settings').then(res => {
+      if (res.data.company_logo) setLogoUrl(res.data.company_logo);
+    }).catch(() => {});
+  }, []);
+
   return (
     <aside className={`sidebar ${isOpen ? 'mobile-open' : ''}`}>
       <button className="sidebar-mobile-close" onClick={onClose}>✕</button>
       
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">S</div>
+        <div className="sidebar-logo-icon">
+          {logoUrl ? <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : 'S'}
+        </div>
         <div className="sidebar-logo-text">
           <h1>Saphir</h1>
-          <span>Construction</span>
+          <span>Group</span>
         </div>
       </div>
 

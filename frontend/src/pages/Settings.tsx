@@ -26,7 +26,8 @@ export default function Settings() {
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
     company_name: '',
     company_email: '',
-    company_phone: ''
+    company_phone: '',
+    company_logo: ''
   });
   const [savingCompany, setSavingCompany] = useState(false);
 
@@ -89,6 +90,53 @@ export default function Settings() {
       setSavingCompany(false);
     }
   };
+
+  // Security Form
+  const [securityForm, setSecurityForm] = useState({ newEmail: '', newPassword: '', confirmPassword: '' });
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [requestingOtp, setRequestingOtp] = useState(false);
+  const [verifyingUpdate, setVerifyingUpdate] = useState(false);
+
+  async function handleRequestOtp() {
+    if (securityForm.newPassword && securityForm.newPassword !== securityForm.confirmPassword) {
+      alert(language === 'fr' ? 'Les mots de passe ne correspondent pas' : 'Passwords do not match');
+      return;
+    }
+    setRequestingOtp(true);
+    try {
+      await API.post('/auth/request-otp');
+      setShowOtpInput(true);
+      alert(language === 'fr' ? 'Code de vérification envoyé à votre e-mail actuel' : 'Verification code sent to your current email');
+    } catch (e: any) {
+      alert(e.response?.data?.error || 'Erreur');
+    } finally {
+      setRequestingOtp(false);
+    }
+  }
+
+  async function handleConfirmUpdate() {
+    if (!otpCode) return;
+    setVerifyingUpdate(true);
+    try {
+      await API.post('/auth/verify-update', {
+        code: otpCode,
+        newEmail: securityForm.newEmail || undefined,
+        newPassword: securityForm.newPassword || undefined,
+        newNom: profilForm.nom || undefined,
+        newTelephone: profilForm.telephone || undefined
+      });
+      alert(language === 'fr' ? 'Compte mis à jour avec succès' : 'Account updated successfully');
+      setShowOtpInput(false);
+      setSecurityForm({ newEmail: '', newPassword: '', confirmPassword: '' });
+      setOtpCode('');
+      loadUser();
+    } catch (e: any) {
+      alert(e.response?.data?.error || 'Erreur');
+    } finally {
+      setVerifyingUpdate(false);
+    }
+  }
 
   async function handleResetApp() {
     if (resetConfirm !== 'PRODUCTION') {
@@ -241,13 +289,14 @@ export default function Settings() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Téléphone de contact</label>
+                  <label className="form-label">URL du Logo (Lien image)</label>
                   <input 
-                    type="tel" 
-                    title="Téléphone de contact"
+                    type="text" 
+                    title="URL du Logo"
                     className="form-input" 
-                    value={companySettings.company_phone || ''} 
-                    onChange={e => setCompanySettings({...companySettings, company_phone: e.target.value})} 
+                    placeholder="https://..."
+                    value={companySettings.company_logo || ''} 
+                    onChange={e => setCompanySettings({...companySettings, company_logo: e.target.value})} 
                   />
                 </div>
                 <button disabled={savingCompany} type="submit" className="btn btn-primary self-start mt-2">
@@ -256,6 +305,88 @@ export default function Settings() {
               </form>
             </div>
           )}
+
+          {/* SECURITY SECTION */}
+          <div className="card">
+            <h3 className="mb-4 text-slate-800">{language === 'fr' ? 'Sécurité et Accès' : 'Security & Access'}</h3>
+            <p className="text-sm text-muted mb-4">
+              {language === 'fr' 
+                ? 'Pour modifier vos accès, un code de vérification sera envoyé à votre adresse e-mail actuelle.' 
+                : 'To change your access, a verification code will be sent to your current email address.'}
+            </p>
+
+            {!showOtpInput ? (
+              <div className="flex-col-gap-4">
+                <div className="form-group">
+                  <label className="form-label">{language === 'fr' ? 'Nouvel Email (Optionnel)' : 'New Email (Optional)'}</label>
+                  <input 
+                    type="email" 
+                    className="form-input" 
+                    placeholder="Laissez vide pour garder l'actuel"
+                    value={securityForm.newEmail} 
+                    onChange={e => setSecurityForm({...securityForm, newEmail: e.target.value})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">{language === 'fr' ? 'Nouveau Mot de passe (Optionnel)' : 'New Password (Optional)'}</label>
+                  <input 
+                    type="password" 
+                    className="form-input" 
+                    placeholder="Min. 6 caractères"
+                    value={securityForm.newPassword} 
+                    onChange={e => setSecurityForm({...securityForm, newPassword: e.target.value})} 
+                  />
+                </div>
+                {securityForm.newPassword && (
+                  <div className="form-group">
+                    <label className="form-label">{language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}</label>
+                    <input 
+                      type="password" 
+                      className="form-input" 
+                      value={securityForm.confirmPassword} 
+                      onChange={e => setSecurityForm({...securityForm, confirmPassword: e.target.value})} 
+                    />
+                  </div>
+                )}
+                <button 
+                  onClick={handleRequestOtp} 
+                  disabled={requestingOtp} 
+                  className="btn btn-primary mt-2"
+                >
+                  {requestingOtp ? '...' : (language === 'fr' ? 'Demander le code de vérification' : 'Request verification code')}
+                </button>
+              </div>
+            ) : (
+              <div className="bg-blue-50 p-4 rounded-md flex-col-gap-3 border border-blue-100">
+                <label className="form-label font-bold text-blue-900">
+                  {language === 'fr' ? 'Entrez le code reçu par e-mail' : 'Enter the code received by email'}
+                </label>
+                <div className="flex-gap-3">
+                  <input 
+                    type="text" 
+                    className="form-input flex-1 text-center font-bold tracking-widest" 
+                    maxLength={6}
+                    placeholder="000000"
+                    value={otpCode}
+                    onChange={e => setOtpCode(e.target.value)}
+                  />
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={handleConfirmUpdate}
+                    disabled={verifyingUpdate || otpCode.length < 6}
+                  >
+                    {verifyingUpdate ? '...' : (language === 'fr' ? 'Confirmer' : 'Confirm')}
+                  </button>
+                </div>
+                <button 
+                  className="btn-link text-xs text-blue-600 mt-1" 
+                  onClick={() => setShowOtpInput(false)}
+                >
+                  {language === 'fr' ? '← Retour / Annuler' : '← Back / Cancel'}
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* HISTORY SECTION */}
           <div className="card">

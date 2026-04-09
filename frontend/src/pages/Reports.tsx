@@ -156,7 +156,7 @@ export default function Reports() {
 
           <div className="report-signature">
             <p><strong>Approuvé par la direction</strong></p>
-            <p className="text-xs text-muted">Document généré depuis Saphir Construction</p>
+            <p className="text-xs text-muted">Document généré depuis Saphir Group</p>
           </div>
         </div>
       </Layout>

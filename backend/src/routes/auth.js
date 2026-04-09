@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../db/database');
 const { authenticate, requireRole } = require('../middlewares/auth');
+const { sendVerificationCode } = require('../services/emailService');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'saphir_secret_2024';
@@ -134,6 +135,69 @@ router.get('/history', authenticate, async (req, res) => {
     res.json({ transactions });
   } catch (err) {
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/auth/request-otp
+router.post('/request-otp', authenticate, async (req, res) => {
+  try {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await pool.query(
+      'UPDATE users SET otp_code = $1, otp_expires = $2 WHERE id = $3',
+      [code, expires, req.user.id]
+    );
+
+    // Get the current email (or the one they want to use if we allow changing to a new one)
+    // For now, send to the current authenticated user's email
+    await sendVerificationCode(req.user.email, code);
+
+    res.json({ success: true, message: 'Code envoyé' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi du code' });
+  }
+});
+
+// POST /api/auth/verify-update
+router.post('/verify-update', authenticate, async (req, res) => {
+  const { code, newEmail, newPassword, newNom, newTelephone } = req.body;
+  if (!code) return res.status(400).json({ error: 'Code de vérification requis' });
+
+  try {
+    const { rows } = await pool.query(
+      'SELECT otp_code, otp_expires FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    const user = rows[0];
+
+    if (!user.otp_code || user.otp_code !== code) {
+      return res.status(400).json({ error: 'Code invalide' });
+    }
+
+    if (new Date() > new Date(user.otp_expires)) {
+      return res.status(400).json({ error: 'Code expiré' });
+    }
+
+    // Clear OTP and update user
+    let query = 'UPDATE users SET otp_code = NULL, otp_expires = NULL, nom = $1, email = $2, telephone = $3';
+    let params = [newNom || req.user.nom, newEmail || req.user.email, newTelephone || req.user.telephone];
+
+    if (newPassword) {
+      query += ', password = $4';
+      params.push(bcrypt.hashSync(newPassword, 10));
+    }
+
+    query += ' WHERE id = $' + (params.length + 1);
+    params.push(req.user.id);
+
+    await pool.query(query, params);
+
+    res.json({ success: true, message: 'Compte mis à jour avec succès' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour' });
   }
 });
 
