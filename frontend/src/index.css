@@ -87,10 +87,6 @@ body {
 }
 
 @media (max-width: 1024px) {
-  .sidebar { width: 240px; }
-}
-
-@media (max-width: 768px) {
   .sidebar {
     position: fixed;
     top: 0; left: 0; bottom: 0;
@@ -292,20 +288,24 @@ body {
 
 .btn-menu {
   display: none;
-  background: none;
-  border: none;
-  font-size: 24px;
+  background: var(--secondary);
+  border: 1px solid var(--border-color);
+  font-size: 20px;
   color: var(--text-main);
   cursor: pointer;
-  padding: 4px;
+  padding: 8px;
   border-radius: var(--radius);
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-menu:hover {
   background: var(--secondary);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .topbar { padding: 0 16px; }
   .btn-menu { display: flex; }
   .topbar-date { display: none; }
@@ -315,6 +315,11 @@ body {
   font-size: 20px;
   font-weight: 600;
   color: var(--text-main);
+  line-height: 1.2;
+}
+
+@media (max-width: 640px) {
+  .page-title h2 { font-size: 16px; }
 }
 
 .page-title p {
@@ -334,7 +339,7 @@ body {
 }
 
 @media (max-width: 768px) {
-  .content-area { padding: 16px; }
+  .content-area { padding: 12px 12px 80px 12px; }
 }
 
 /* Auth / Login */
@@ -381,7 +386,7 @@ body {
 }
 
 @media (max-width: 768px) {
-  .card { padding: 16px; margin-bottom: 16px; }
+  .card { padding: 16px; margin-bottom: 12px; border-radius: 12px; }
 }
 
 /* Buttons */
@@ -570,7 +575,7 @@ body {
 }
 
 @media (max-width: 640px) {
-  .stat-grid { grid-template-columns: 1fr; gap: 12px; }
+  .stat-grid { grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
 }
 
 .mt-2 { margin-top: 8px; }
