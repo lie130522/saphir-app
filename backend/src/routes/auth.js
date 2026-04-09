@@ -54,9 +54,10 @@ router.get('/users', authenticate, requireRole('admin'), async (req, res) => {
 // POST /api/auth/users - admin only
 router.post('/users', authenticate, requireRole('admin'), async (req, res) => {
   const { nom, email, password, role, telephone, sendInvite } = req.body;
-  if (!nom || !email || !role) return res.status(400).json({ error: 'Champs requis manquants' });
+  if (!email || !role) return res.status(400).json({ error: 'Champs requis manquants' });
   
-  // If invite is requested, we can ignore the provided password and generate a random one
+  const finalNom = nom || 'Nouveau Collaborateur';
+  const initialStatus = sendInvite ? 2 : 1; // 2 = En attente
   let finalPassword = password;
   if (sendInvite) {
     // Generate an 8-character random password
@@ -68,8 +69,8 @@ router.post('/users', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const hash = bcrypt.hashSync(finalPassword, 10);
     const result = await pool.query(
-      'INSERT INTO users (nom, email, password, role, telephone) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [nom, email, hash, role, telephone || null]
+      'INSERT INTO users (nom, email, password, role, telephone, actif) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [finalNom, email, hash, role, telephone || null, initialStatus]
     );
 
     if (sendInvite) {
@@ -123,8 +124,9 @@ router.put('/profile', authenticate, async (req, res) => {
   const { nom, email, telephone } = req.body;
   if (!nom || !email) return res.status(400).json({ error: 'Noms et Email requis' });
   try {
+    // If the profile is updated, we can mark the user as fully active (1)
     await pool.query(
-      'UPDATE users SET nom=$1, email=$2, telephone=$3 WHERE id=$4',
+      'UPDATE users SET nom=$1, email=$2, telephone=$3, actif=1 WHERE id=$4',
       [nom, email, telephone || null, req.user.id]
     );
     res.json({ success: true });

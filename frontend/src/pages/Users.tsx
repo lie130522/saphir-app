@@ -113,8 +113,8 @@ export default function Users() {
                   </span>
                 </td>
                 <td>
-                  <span className={`badge ${u.actif ? 'badge-success' : 'badge-danger'}`}>
-                    {u.actif ? 'Actif' : 'Inactif'}
+                  <span className={`badge ${u.actif === 1 ? 'badge-success' : u.actif === 2 ? 'badge-warning' : 'badge-danger'}`}>
+                    {u.actif === 1 ? 'Actif' : u.actif === 2 ? 'En attente' : 'Inactif'}
                   </span>
                 </td>
                 <td>
@@ -140,18 +140,25 @@ export default function Users() {
                 <button type="button" className="modal-close" onClick={() => setIsModalOpen(false)}>&times;</button>
               </div>
               <div className="modal-body flex-col-gap-4">
-                <div className="form-group">
-                  <label className="form-label">Nom complet *</label>
-                  <input type="text" className="form-input" title="Nom complet" required value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} />
-                </div>
+                {/* Email is always required */}
                 <div className="form-group">
                   <label className="form-label">Email *</label>
                   <input type="email" className="form-input" title="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Téléphone</label>
-                  <input type="tel" className="form-input" title="Téléphone" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
-                </div>
+
+                {/* Name and Phone only if editing OR NOT inviting */}
+                {(formData.id > 0 || !formData.sendInvite) && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">Nom complet *</label>
+                      <input type="text" className="form-input" title="Nom complet" required value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Téléphone</label>
+                      <input type="tel" className="form-input" title="Téléphone" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
+                    </div>
+                  </>
+                )}
                 <div className="form-group">
                   <label className="form-label">Rôle *</label>
                   <select className="form-input" title="Rôle" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as any})}>
