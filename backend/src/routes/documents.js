@@ -53,7 +53,7 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
   } catch (error) {
     console.error(error);
     fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: 'Erreur lors de l\\'enregistrement' });
+    res.status(500).json({ error: "Erreur lors de l'enregistrement" });
   }
 });
 
