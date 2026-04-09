@@ -5,7 +5,6 @@ services:
     plan: free
     envVars:
       - key: DATABASE_URL
-        fromConfig: DATABASE_URL
       - key: JWT_SECRET
         generateValue: true
       - key: PORT
