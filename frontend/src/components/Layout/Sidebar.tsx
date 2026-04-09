@@ -16,7 +16,12 @@ const navItems = [
   { to: '/parametres', icon: '⚙️', labelKey: 'settings', section: '' },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, logout, isAdmin } = useAuth();
   const { language } = useSettings();
   const navigate = useNavigate();
@@ -32,7 +37,9 @@ export default function Sidebar() {
   const items = navItems.filter(i => !i.adminOnly || isAdmin);
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'mobile-open' : ''}`}>
+      <button className="sidebar-mobile-close" onClick={onClose}>✕</button>
+      
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">S</div>
         <div className="sidebar-logo-text">
@@ -47,7 +54,11 @@ export default function Sidebar() {
           return (
             <React.Fragment key={item.to}>
               {showSection && <div className="nav-section-title">{item.section}</div>}
-              <NavLink to={item.to} className={({ isActive }: { isActive: boolean }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+              <NavLink 
+                to={item.to} 
+                className={({ isActive }: { isActive: boolean }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                onClick={() => { if (window.innerWidth <= 768) onClose(); }}
+              >
                 <span className="sidebar-icon">{item.icon}</span>
                 {t[item.labelKey || '']}
               </NavLink>
