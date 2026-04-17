@@ -24,5 +24,8 @@ COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 # Exposer le port de l'API (qui servira aussi le frontend)
 EXPOSE 3001
 
+# Définir l'environnement de production
+ENV NODE_ENV=production
+
 # Lancement du serveur backend
 CMD ["npm", "run", "start"]
