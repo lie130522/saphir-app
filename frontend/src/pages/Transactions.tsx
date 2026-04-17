@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { formatMoney, formatDate, today } from '../utils/formatters';
 import type { Transaction, Account, Category, Project, Employee, Document } from '../types';
 
@@ -67,7 +67,10 @@ export default function Transactions() {
     if (fDateFin) q.append('date_fin', fDateFin);
     if (fType) q.append('type', fType);
     if (fAccountId) q.append('account_id', fAccountId);
-    API.get(`/transactions?${q.toString()}`).then(r => setTransactions(r.data));
+    API.get(`/transactions?${q.toString()}`).then(r => {
+      const data = r.data;
+      setTransactions(Array.isArray(data) ? data : []);
+    });
   }, [fDateDebut, fDateFin, fType, fAccountId]);
 
   useEffect(() => { loadData(); }, [loadData]);

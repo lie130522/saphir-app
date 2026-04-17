@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
-import { useAuth } from '../contexts/AuthContext';
-import { useSettings } from '../contexts/SettingsContext';
+import { useAuth } from '../contexts/useAuth';
+import { useSettings } from '../contexts/useSettings';
 import { useNavigate } from 'react-router-dom';
 import type { CompanySettings, Transaction } from '../types';
 import { formatMoney, formatDate } from '../utils/formatters';
@@ -71,7 +71,8 @@ export default function Settings() {
       await API.put('/auth/profile', profilForm);
       await loadUser(); // Reload to update auth context
       alert(language === 'fr' ? 'Profil mis à jour' : 'Profile updated');
-    } catch (e: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
       alert(e.response?.data?.error || 'Erreur');
     } finally {
       setSavingProfil(false);
@@ -84,7 +85,8 @@ export default function Settings() {
     try {
       await API.post('/settings', companySettings);
       alert(language === 'fr' ? 'Paramètres société enregistrés' : 'Company settings saved');
-    } catch (e: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
       alert(e.response?.data?.error || 'Erreur');
     } finally {
       setSavingCompany(false);
@@ -108,7 +110,8 @@ export default function Settings() {
       await API.post('/auth/request-otp');
       setShowOtpInput(true);
       alert(language === 'fr' ? 'Code de vérification envoyé à votre e-mail actuel' : 'Verification code sent to your current email');
-    } catch (e: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
       alert(e.response?.data?.error || 'Erreur');
     } finally {
       setRequestingOtp(false);
@@ -131,7 +134,8 @@ export default function Settings() {
       setSecurityForm({ newEmail: '', newPassword: '', confirmPassword: '' });
       setOtpCode('');
       loadUser();
-    } catch (e: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
       alert(e.response?.data?.error || 'Erreur');
     } finally {
       setVerifyingUpdate(false);
@@ -154,7 +158,8 @@ export default function Settings() {
       alert("L'application a été réinitialisée avec succès ! Passage en mode production effectué.");
       setResetConfirm('');
       navigate('/');
-    } catch (e: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
       alert(e.response?.data?.error || 'Erreur lors de la réinitialisation');
     } finally {
       setLoading(false);
@@ -339,9 +344,11 @@ export default function Settings() {
                 </div>
                 {securityForm.newPassword && (
                   <div className="form-group">
-                    <label className="form-label">{language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}</label>
+                    <label className="form-label" htmlFor="confirmPassword">{language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}</label>
                     <input 
+                      id="confirmPassword"
                       type="password" 
+                      title={language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}
                       className="form-input" 
                       value={securityForm.confirmPassword} 
                       onChange={e => setSecurityForm({...securityForm, confirmPassword: e.target.value})} 

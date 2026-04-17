@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 type Theme = 'light' | 'dark';
@@ -11,7 +11,7 @@ interface SettingsContextType {
   setLanguage: (lang: Language) => void;
 }
 
-const SettingsContext = createContext<SettingsContextType | null>(null);
+export const SettingsContext = createContext<SettingsContextType | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('saphir_theme') as Theme) || 'light');
@@ -35,9 +35,3 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     </SettingsContext.Provider>
   );
 }
-
-export const useSettings = () => {
-  const ctx = useContext(SettingsContext);
-  if (!ctx) throw new Error('useSettings must be used within SettingsProvider');
-  return ctx;
-};

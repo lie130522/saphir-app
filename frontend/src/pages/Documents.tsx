@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { formatDate } from '../utils/formatters';
 import type { Document } from '../types';
 

@@ -67,7 +67,8 @@ export default function Users() {
       }
       setIsModalOpen(false);
       loadUsers();
-    } catch (e: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
       alert(e.response?.data?.error || 'Erreur lors de l\'enregistrement');
     } finally {
       setLoading(false);
@@ -79,7 +80,8 @@ export default function Users() {
     try {
       await API.delete(`/auth/users/${id}`);
       loadUsers();
-    } catch (e: any) {
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
       alert(e.response?.data?.error || 'Erreur lors de la suppression');
     }
   };
@@ -161,7 +163,7 @@ export default function Users() {
                 )}
                 <div className="form-group">
                   <label className="form-label">Rôle *</label>
-                  <select className="form-input" title="Rôle" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as any})}>
+                  <select className="form-input" title="Rôle" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as User['role']})}>
                     <option value="consultant">Consultant / Observateur</option>
                     <option value="comptable">Comptable / Caisse</option>
                     <option value="admin">Administrateur</option>

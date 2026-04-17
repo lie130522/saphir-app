@@ -1,9 +1,10 @@
 import { Fragment, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import API from '../../api/client'
-import { useAuth } from '../../contexts/AuthContext';
+import API from '../../api/client';
+import { useAuth } from '../../contexts/useAuth';
 import translations from '../../i18n/translations';
-import { useSettings } from '../../contexts/SettingsContext';
+import { useSettings } from '../../contexts/useSettings';
+import type { CompanySettings } from '../../types';
 
 const navItems = [
   { to: '/', icon: '📊', labelKey: 'dashboard', section: 'PRINCIPAL' },
@@ -40,7 +41,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    API.get('/settings').then((res: any) => {
+    API.get<CompanySettings>('/settings').then((res) => {
       if (res.data.company_logo) setLogoUrl(res.data.company_logo);
     }).catch(() => {});
   }, []);
@@ -51,7 +52,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       
       <div className="sidebar-logo">
         <div className="sidebar-logo-icon">
-          {logoUrl ? <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : 'S'}
+          {logoUrl ? <img src={logoUrl} alt="Logo" className="sidebar-logo-img" /> : 'S'}
         </div>
         <div className="sidebar-logo-text">
           <h1>Saphir</h1>

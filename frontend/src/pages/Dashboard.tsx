@@ -8,14 +8,31 @@ import type { DashboardData, Transaction } from '../types';
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [chartDevise, setChartDevise] = useState<'USD' | 'CDF'>('USD');
 
   useEffect(() => {
-    API.get('/reports/dashboard').then(r => setData(r.data)).finally(() => setLoading(false));
+    API.get('/reports/dashboard')
+      .then(r => {
+        // Validate the response has the expected structure
+        if (r.data && Array.isArray(r.data.accounts)) {
+          setData(r.data);
+        } else {
+          setError(true);
+        }
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Layout title="Tableau de bord"><div className="loading-box">⏳ Chargement...</div></Layout>;
-  if (!data) return null;
+  if (error || !data) return (
+    <Layout title="Tableau de bord">
+      <div className="loading-box">
+        ⚠️ Impossible de charger le tableau de bord. Vérifiez la connexion au serveur.
+      </div>
+    </Layout>
+  );
 
   const totalUSD = data.accounts.filter(a => a.devise === 'USD').reduce((s, a) => s + a.solde_actuel, 0);
   const totalCDF = data.accounts.filter(a => a.devise === 'CDF').reduce((s, a) => s + a.solde_actuel, 0);

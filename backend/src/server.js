@@ -29,11 +29,14 @@ app.use('/api/settings', require('./routes/settings'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Saphir API', version: '1.0.0' }));
 
-// Serve frontend statically in production
-app.use(express.static(path.join(__dirname, '../../frontend/dist')));
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
-});
+// Serve frontend statically in production only
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '../../frontend/dist');
+  app.use(express.static(distPath));
+  app.use((req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`✅ Saphir API démarré sur http://localhost:${PORT}`);

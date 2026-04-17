@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import API from '../api/client';
 import type { User } from '../types';
@@ -15,7 +15,7 @@ interface AuthContextType {
   canDelete: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
@@ -31,23 +31,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  async function loadUser() {
+  const loadUser = useCallback(async () => {
     if (token) {
       try {
         const res = await API.get('/auth/me');
         setUser(res.data);
         localStorage.setItem('saphir_user', JSON.stringify(res.data));
-      } catch (e) {
+      } catch {
         logout();
       }
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     if (token && !user) {
       loadUser();
     }
-  }, [token, user]);
+  }, [token, user, loadUser]);
 
   async function login(email: string, password: string) {
     const res = await API.post('/auth/login', { email, password });
@@ -70,9 +70,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
-};

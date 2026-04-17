@@ -49,8 +49,11 @@ export default function Reports() {
   async function handleViewReport(id: number) {
     try {
       const res = await API.get(`/reports/narrative/${id}`);
-      const data = { ...res.data, contenu: JSON.parse(res.data.contenu) };
-      setSelectedReport(data);
+      // PostgreSQL JSONB is auto-deserialized by pg driver, so contenu may already be an object
+      const contenu = typeof res.data.contenu === 'string'
+        ? JSON.parse(res.data.contenu)
+        : res.data.contenu;
+      setSelectedReport({ ...res.data, contenu });
     } catch {
       alert('Erreur lors du chargement du rapport');
     }
