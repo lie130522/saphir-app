@@ -31,7 +31,7 @@ app.use(cors({
 app.use(express.json());
 
 // Servir statiquement le dossier des uploads générés
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.resolve(process.cwd(), '../uploads')));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

@@ -8,7 +8,7 @@ const { authenticate, requireRole } = require('../middlewares/auth');
 
 const router = express.Router();
 
-const uploadDir = path.join(__dirname, '../../uploads');
+const uploadDir = path.resolve(process.cwd(), '../uploads');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => cb(null, `archive_${Date.now()}_${file.originalname}`)
