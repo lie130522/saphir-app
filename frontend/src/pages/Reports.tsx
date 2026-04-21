@@ -29,7 +29,7 @@ export default function Reports() {
     queryFn: () => API.get('/reports/narrative/history').then(r => r.data)
   });
 
-  const { data: activeReport, isLoading: reportLoading } = useQuery<DecodedReport>({
+  const { data: activeReport } = useQuery<DecodedReport>({
     queryKey: ['report', selectedReportId],
     queryFn: async () => {
       const res = await API.get(`/reports/narrative/${selectedReportId}`);
@@ -40,13 +40,14 @@ export default function Reports() {
   });
 
   const generateMutation = useMutation({
-    mutationFn: (data: any) => API.post('/reports/narrative/generate', data),
+    mutationFn: (data: { type: string; date_debut: string | null; date_fin: string | null }) => API.post('/reports/narrative/generate', data),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['reports-history'] });
       setShowModal(false);
       setSelectedReportId(res.data.id);
     },
-    onError: (err: any) => {
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { error?: string } } };
       alert(err.response?.data?.error || 'Erreur lors de la génération');
     }
   });

@@ -6,7 +6,7 @@ import API from '../api/client';
 import { useAuth } from '../contexts/useAuth';
 import type { Employee } from '../types';
 import { formatDate } from '../utils/formatters';
-import { Skeleton, TableRowSkeleton } from '../components/Skeleton';
+import { TableRowSkeleton } from '../components/Skeleton';
 
 const EMPTY: Partial<Employee> = { nom: '', prenom: '', poste: '', telephone: '', email: '', date_embauche: '' };
 
@@ -45,8 +45,9 @@ export default function Employees() {
       queryClient.invalidateQueries({ queryKey: ['employees'] });
       setModal(false);
     },
-    onError: (e: any) => {
-      alert(e.response?.data?.error || 'Erreur lors de l\'enregistrement');
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { error?: string } } };
+      alert(err.response?.data?.error || 'Erreur lors de l\'enregistrement');
     }
   });
 

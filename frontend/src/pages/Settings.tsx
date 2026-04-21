@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
@@ -23,7 +23,6 @@ export default function Settings() {
   const { isAdmin, user, loadUser } = useAuth();
   const { theme, toggleTheme, language, setLanguage } = useSettings();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   
   const [resetConfirm, setResetConfirm] = useState('');
   const [profilForm, setProfilForm] = useState({ nom: '', email: '', telephone: '' });
