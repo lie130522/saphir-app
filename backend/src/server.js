@@ -1,18 +1,31 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-
+const path = require('path');
 const compression = require('compression');
+
+// Robust error logging for Render
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION! Shutting down...');
+  console.error(err.name, err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('💥 UNHANDLED REJECTION! Shutting down...');
+  console.error(err);
+  process.exit(1);
+});
+
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const path = require('path');
-
 app.use(compression());
 app.use(cors({ 
-  origin: [/localhost:\d+/],
+  origin: process.env.NODE_ENV === 'production' ? '*' : [/localhost:\d+/],
   credentials: true 
 }));
 app.use(express.json());
@@ -48,6 +61,7 @@ if (process.env.NODE_ENV === 'production') {
 // Global Error Handler (Must be last)
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`✅ Saphir API démarré sur http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Saphir API started on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
 });
