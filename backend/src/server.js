@@ -51,7 +51,16 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Saphir API',
 
 // Serve frontend statically in production only
 if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '../../frontend/dist');
+  const distPath = path.resolve(__dirname, '../../frontend/dist');
+  console.log(`📂 Serving frontend from: ${distPath}`);
+  
+  const fs = require('fs');
+  if (fs.existsSync(distPath)) {
+    console.log('✅ dist folder exists. Files:', fs.readdirSync(distPath));
+  } else {
+    console.warn('❌ dist folder MISSING at:', distPath);
+  }
+
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
