@@ -1,6 +1,10 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+if (!resend) {
+  console.warn('⚠️ Missing RESEND_API_KEY. Email service is disabled.');
+}
 
 /**
  * Send a verification code to a user
@@ -8,6 +12,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
  * @param {string} code 
  */
 async function sendVerificationCode(email, code) {
+  if (!resend) return;
   try {
     const { data, error } = await resend.emails.send({
       from: 'Saphir Group <onboarding@resend.dev>', // Note: Use a verified domain in production
@@ -47,6 +52,7 @@ async function sendVerificationCode(email, code) {
  * @param {string} name 
  */
 async function sendInvitationEmail(email, temporaryPassword, name) {
+  if (!resend) return;
   try {
     const { data, error } = await resend.emails.send({
       from: 'Saphir Group <onboarding@resend.dev>',

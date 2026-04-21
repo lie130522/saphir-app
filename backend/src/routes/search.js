@@ -37,7 +37,7 @@ router.get('/', authenticate, async (req, res) => {
         date,
         type,
         description as libelle,
-        amount as montant,
+        montant,
         currency,
         project_id,
         NULL as justificatif_url,

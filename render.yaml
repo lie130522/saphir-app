@@ -10,3 +10,5 @@ services:
         generateValue: true
       - key: PORT
         value: 3001
+      - key: RESEND_API_KEY
+        value: "re_XYZ_PLACEHOLDER"
