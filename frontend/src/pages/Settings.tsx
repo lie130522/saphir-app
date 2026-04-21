@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
 import { useAuth } from '../contexts/useAuth';
@@ -7,29 +9,46 @@ import { useNavigate } from 'react-router-dom';
 import type { CompanySettings, Transaction } from '../types';
 import { formatMoney, formatDate } from '../utils/formatters';
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 }
+};
+
 export default function Settings() {
   const { isAdmin, user, loadUser } = useAuth();
   const { theme, toggleTheme, language, setLanguage } = useSettings();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   const [resetConfirm, setResetConfirm] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // Profil Form
   const [profilForm, setProfilForm] = useState({ nom: '', email: '', telephone: '' });
-  const [savingProfil, setSavingProfil] = useState(false);
-  
-  // Historique
-  const [history, setHistory] = useState<Transaction[]>([]);
+  const [securityForm, setSecurityForm] = useState({ newEmail: '', newPassword: '', confirmPassword: '' });
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
 
-  // Company Settings Form
+  const { data: history = [] } = useQuery<Transaction[]>({
+    queryKey: ['auth-history'],
+    queryFn: () => API.get('/auth/history').then(r => r.data.transactions || []),
+    enabled: !!user
+  });
+
+  const { data: companyData } = useQuery<CompanySettings>({
+    queryKey: ['company-settings'],
+    queryFn: () => API.get('/settings').then(r => r.data),
+    enabled: !!isAdmin
+  });
+
   const [companySettings, setCompanySettings] = useState<CompanySettings>({
     company_name: '',
     company_email: '',
     company_phone: '',
     company_logo: ''
   });
-  const [savingCompany, setSavingCompany] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -38,142 +57,110 @@ export default function Settings() {
         email: user.email || '',
         telephone: user.telephone || ''
       });
-      loadHistory();
     }
-    
-    if (isAdmin) {
-      loadCompanySettings();
-    }
-  }, [user, isAdmin]);
+  }, [user]);
 
-  const loadHistory = async () => {
-    try {
-      const res = await API.get('/auth/history');
-      setHistory(res.data.transactions || []);
-    } catch (e) {
-      console.error(e);
+  useEffect(() => {
+    if (companyData) {
+      setCompanySettings(prev => ({ ...prev, ...companyData }));
     }
-  };
+  }, [companyData]);
 
-  const loadCompanySettings = async () => {
-    try {
-      const res = await API.get('/settings');
-      setCompanySettings(prev => ({ ...prev, ...res.data }));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleUpdateProfil = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingProfil(true);
-    try {
-      await API.put('/auth/profile', profilForm);
-      await loadUser(); // Reload to update auth context
+  const updateProfilMutation = useMutation({
+    mutationFn: (data: typeof profilForm) => API.put('/auth/profile', data),
+    onSuccess: () => {
+      loadUser();
       alert(language === 'fr' ? 'Profil mis à jour' : 'Profile updated');
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      alert(e.response?.data?.error || 'Erreur');
-    } finally {
-      setSavingProfil(false);
-    }
-  };
+    },
+    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+  });
 
-  const handleUpdateCompany = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingCompany(true);
-    try {
-      await API.post('/settings', companySettings);
-      alert(language === 'fr' ? 'Paramètres société enregistrés' : 'Company settings saved');
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      alert(e.response?.data?.error || 'Erreur');
-    } finally {
-      setSavingCompany(false);
-    }
-  };
+  const updateCompanyMutation = useMutation({
+    mutationFn: (data: CompanySettings) => API.post('/settings', data),
+    onSuccess: () => alert(language === 'fr' ? 'Paramètres société enregistrés' : 'Company settings saved'),
+    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+  });
 
-  // Security Form
-  const [securityForm, setSecurityForm] = useState({ newEmail: '', newPassword: '', confirmPassword: '' });
-  const [showOtpInput, setShowOtpInput] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [requestingOtp, setRequestingOtp] = useState(false);
-  const [verifyingUpdate, setVerifyingUpdate] = useState(false);
-
-  async function handleRequestOtp() {
-    if (securityForm.newPassword && securityForm.newPassword !== securityForm.confirmPassword) {
-      alert(language === 'fr' ? 'Les mots de passe ne correspondent pas' : 'Passwords do not match');
-      return;
-    }
-    setRequestingOtp(true);
-    try {
-      await API.post('/auth/request-otp');
+  const requestOtpMutation = useMutation({
+    mutationFn: () => API.post('/auth/request-otp'),
+    onSuccess: () => {
       setShowOtpInput(true);
       alert(language === 'fr' ? 'Code de vérification envoyé à votre e-mail actuel' : 'Verification code sent to your current email');
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      alert(e.response?.data?.error || 'Erreur');
-    } finally {
-      setRequestingOtp(false);
-    }
-  }
+    },
+    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+  });
 
-  async function handleConfirmUpdate() {
-    if (!otpCode) return;
-    setVerifyingUpdate(true);
-    try {
-      await API.post('/auth/verify-update', {
-        code: otpCode,
-        newEmail: securityForm.newEmail || undefined,
-        newPassword: securityForm.newPassword || undefined,
-        newNom: profilForm.nom || undefined,
-        newTelephone: profilForm.telephone || undefined
-      });
+  const verifyUpdateMutation = useMutation({
+    mutationFn: (data: any) => API.post('/auth/verify-update', data),
+    onSuccess: () => {
       alert(language === 'fr' ? 'Compte mis à jour avec succès' : 'Account updated successfully');
       setShowOtpInput(false);
       setSecurityForm({ newEmail: '', newPassword: '', confirmPassword: '' });
       setOtpCode('');
       loadUser();
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      alert(e.response?.data?.error || 'Erreur');
-    } finally {
-      setVerifyingUpdate(false);
-    }
-  }
+    },
+    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+  });
 
-  async function handleResetApp() {
+  const resetMutation = useMutation({
+    mutationFn: () => API.post('/admin/reset'),
+    onSuccess: () => {
+      alert("L'application a été réinitialisée avec succès ! Passage en mode production effectué.");
+      setResetConfirm('');
+      navigate('/');
+    },
+    onError: (err: any) => alert(err.response?.data?.error || 'Erreur lors de la réinitialisation')
+  });
+
+  const handleUpdateProfil = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateProfilMutation.mutate(profilForm);
+  };
+
+  const handleUpdateCompany = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateCompanyMutation.mutate(companySettings);
+  };
+
+  const handleRequestOtp = () => {
+    if (securityForm.newPassword && securityForm.newPassword !== securityForm.confirmPassword) {
+      alert(language === 'fr' ? 'Les mots de passe ne correspondent pas' : 'Passwords do not match');
+      return;
+    }
+    requestOtpMutation.mutate();
+  };
+
+  const handleConfirmUpdate = () => {
+    if (!otpCode) return;
+    verifyUpdateMutation.mutate({
+      code: otpCode,
+      newEmail: securityForm.newEmail || undefined,
+      newPassword: securityForm.newPassword || undefined,
+      newNom: profilForm.nom || undefined,
+      newTelephone: profilForm.telephone || undefined
+    });
+  };
+
+  const handleResetApp = () => {
     if (resetConfirm !== 'PRODUCTION') {
       alert("Veuillez taper PRODUCTION pour confirmer la réinitialisation.");
       return;
     }
-    
-    if (!confirm("⚠️ ATTENTION : Cette action est irréversible. Toutes les données de test (Transactions, Documents, Rapports) seront définitivement supprimées. Voulez-vous continuer ?")) {
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await API.post('/admin/reset');
-      alert("L'application a été réinitialisée avec succès ! Passage en mode production effectué.");
-      setResetConfirm('');
-      navigate('/');
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      alert(e.response?.data?.error || 'Erreur lors de la réinitialisation');
-    } finally {
-      setLoading(false);
-    }
-  }
+    if (!confirm("⚠️ ATTENTION : Cette action est irréversible. Toutes les données de test (Transactions, Documents, Rapports) seront définitivement supprimées. Voulez-vous continuer ?")) return;
+    resetMutation.mutate();
+  };
 
   return (
     <Layout title={language === 'fr' ? 'Paramètres' : 'Settings'} subtitle={language === 'fr' ? 'Configuration de l’application' : 'App configuration'}>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-[1200px]">
-        
+      <motion.div 
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-[1200px]"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         <div className="flex-col-gap-6">
           {/* PROFIL SECTION */}
-          <div className="card">
+          <motion.div className="card" variants={itemVariants}>
             <h3 className="mb-4">{language === 'fr' ? 'Mon Profil' : 'My Profile'}</h3>
             <div className="flex-center-gap-4 mb-6 pb-6 border-b border-slate-100">
               <div className="avatar-lg bg-primary text-white fw-bold">
@@ -219,14 +206,14 @@ export default function Settings() {
                   onChange={e => setProfilForm({...profilForm, telephone: e.target.value})} 
                 />
               </div>
-              <button disabled={savingProfil} type="submit" className="btn btn-primary self-start mt-2">
-                {savingProfil ? '...' : (language === 'fr' ? 'Mettre à jour le profil' : 'Update profile')}
+              <button disabled={updateProfilMutation.isPending} type="submit" className="btn btn-primary self-start mt-2">
+                {updateProfilMutation.isPending ? '...' : (language === 'fr' ? 'Mettre à jour le profil' : 'Update profile')}
               </button>
             </form>
-          </div>
+          </motion.div>
 
           {/* PREFERENCES SECTION */}
-          <div className="card">
+          <motion.div className="card" variants={itemVariants}>
             <h3 className="mb-4">{language === 'fr' ? 'Préférences' : 'Preferences'}</h3>
             
             <div className="form-group">
@@ -264,13 +251,13 @@ export default function Settings() {
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         <div className="flex-col-gap-6">
           {/* SOCIETE SECTION (ADMIN ONLY) */}
           {isAdmin && (
-            <div className="card border-blue-200">
+            <motion.div className="card border-blue-200" variants={itemVariants}>
               <h3 className="mb-4 text-blue-800">{language === 'fr' ? 'Profil de la Société' : 'Company Profile'}</h3>
               <form onSubmit={handleUpdateCompany} className="flex-col-gap-4">
                 <div className="form-group">
@@ -304,15 +291,15 @@ export default function Settings() {
                     onChange={e => setCompanySettings({...companySettings, company_logo: e.target.value})} 
                   />
                 </div>
-                <button disabled={savingCompany} type="submit" className="btn btn-primary self-start mt-2">
-                  {savingCompany ? '...' : (language === 'fr' ? 'Enregistrer les infos de la société' : 'Save company info')}
+                <button disabled={updateCompanyMutation.isPending} type="submit" className="btn btn-primary self-start mt-2">
+                  {updateCompanyMutation.isPending ? '...' : (language === 'fr' ? 'Enregistrer les infos de la société' : 'Save company info')}
                 </button>
               </form>
-            </div>
+            </motion.div>
           )}
 
           {/* SECURITY SECTION */}
-          <div className="card">
+          <motion.div className="card" variants={itemVariants}>
             <h3 className="mb-4 text-slate-800">{language === 'fr' ? 'Sécurité et Accès' : 'Security & Access'}</h3>
             <p className="text-sm text-muted mb-4">
               {language === 'fr' 
@@ -320,89 +307,107 @@ export default function Settings() {
                 : 'To change your access, a verification code will be sent to your current email address.'}
             </p>
 
-            {!showOtpInput ? (
-              <div className="flex-col-gap-4">
-                <div className="form-group">
-                  <label className="form-label">{language === 'fr' ? 'Nouvel Email (Optionnel)' : 'New Email (Optional)'}</label>
-                  <input 
-                    type="email" 
-                    className="form-input" 
-                    placeholder="Laissez vide pour garder l'actuel"
-                    value={securityForm.newEmail} 
-                    onChange={e => setSecurityForm({...securityForm, newEmail: e.target.value})} 
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{language === 'fr' ? 'Nouveau Mot de passe (Optionnel)' : 'New Password (Optional)'}</label>
-                  <input 
-                    type="password" 
-                    className="form-input" 
-                    placeholder="Min. 6 caractères"
-                    value={securityForm.newPassword} 
-                    onChange={e => setSecurityForm({...securityForm, newPassword: e.target.value})} 
-                  />
-                </div>
-                {securityForm.newPassword && (
+            <AnimatePresence mode="wait">
+              {!showOtpInput ? (
+                <motion.div 
+                  key="security-form"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="flex-col-gap-4"
+                >
                   <div className="form-group">
-                    <label className="form-label" htmlFor="confirmPassword">{language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}</label>
+                    <label className="form-label">{language === 'fr' ? 'Nouvel Email (Optionnel)' : 'New Email (Optional)'}</label>
                     <input 
-                      id="confirmPassword"
-                      type="password" 
-                      title={language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}
+                      type="email" 
                       className="form-input" 
-                      value={securityForm.confirmPassword} 
-                      onChange={e => setSecurityForm({...securityForm, confirmPassword: e.target.value})} 
+                      placeholder="Laissez vide pour garder l'actuel"
+                      value={securityForm.newEmail} 
+                      onChange={e => setSecurityForm({...securityForm, newEmail: e.target.value})} 
                     />
                   </div>
-                )}
-                <button 
-                  onClick={handleRequestOtp} 
-                  disabled={requestingOtp} 
-                  className="btn btn-primary mt-2"
-                >
-                  {requestingOtp ? '...' : (language === 'fr' ? 'Demander le code de vérification' : 'Request verification code')}
-                </button>
-              </div>
-            ) : (
-              <div className="bg-blue-50 p-4 rounded-md flex-col-gap-3 border border-blue-100">
-                <label className="form-label font-bold text-blue-900">
-                  {language === 'fr' ? 'Entrez le code reçu par e-mail' : 'Enter the code received by email'}
-                </label>
-                <div className="flex-gap-3">
-                  <input 
-                    type="text" 
-                    className="form-input flex-1 text-center font-bold tracking-widest" 
-                    maxLength={6}
-                    placeholder="000000"
-                    value={otpCode}
-                    onChange={e => setOtpCode(e.target.value)}
-                  />
+                  <div className="form-group">
+                    <label className="form-label">{language === 'fr' ? 'Nouveau Mot de passe (Optionnel)' : 'New Password (Optional)'}</label>
+                    <input 
+                      type="password" 
+                      className="form-input" 
+                      placeholder="Min. 6 caractères"
+                      value={securityForm.newPassword} 
+                      onChange={e => setSecurityForm({...securityForm, newPassword: e.target.value})} 
+                    />
+                  </div>
+                  {securityForm.newPassword && (
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="confirmPassword">{language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}</label>
+                      <input 
+                        id="confirmPassword"
+                        type="password" 
+                        title={language === 'fr' ? 'Confirmer le mot de passe' : 'Confirm Password'}
+                        className="form-input" 
+                        value={securityForm.confirmPassword} 
+                        onChange={e => setSecurityForm({...securityForm, confirmPassword: e.target.value})} 
+                      />
+                    </div>
+                  )}
                   <button 
-                    className="btn btn-primary" 
-                    onClick={handleConfirmUpdate}
-                    disabled={verifyingUpdate || otpCode.length < 6}
+                    onClick={handleRequestOtp} 
+                    disabled={requestOtpMutation.isPending} 
+                    className="btn btn-primary mt-2"
                   >
-                    {verifyingUpdate ? '...' : (language === 'fr' ? 'Confirmer' : 'Confirm')}
+                    {requestOtpMutation.isPending ? '...' : (language === 'fr' ? 'Demander le code de vérification' : 'Request verification code')}
                   </button>
-                </div>
-                <button 
-                  className="btn-link text-xs text-blue-600 mt-1" 
-                  onClick={() => setShowOtpInput(false)}
+                </motion.div>
+              ) : (
+                <motion.div 
+                  key="otp-input"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="bg-blue-50 p-4 rounded-md flex-col-gap-3 border border-blue-100"
                 >
-                  {language === 'fr' ? '← Retour / Annuler' : '← Back / Cancel'}
-                </button>
-              </div>
-            )}
-          </div>
+                  <label className="form-label font-bold text-blue-900">
+                    {language === 'fr' ? 'Entrez le code reçu par e-mail' : 'Enter the code received by email'}
+                  </label>
+                  <div className="flex-gap-3">
+                    <input 
+                      type="text" 
+                      className="form-input flex-1 text-center font-bold tracking-widest" 
+                      maxLength={6}
+                      placeholder="000000"
+                      value={otpCode}
+                      onChange={e => setOtpCode(e.target.value)}
+                    />
+                    <button 
+                      className="btn btn-primary" 
+                      onClick={handleConfirmUpdate}
+                      disabled={verifyUpdateMutation.isPending || otpCode.length < 6}
+                    >
+                      {verifyUpdateMutation.isPending ? '...' : (language === 'fr' ? 'Confirmer' : 'Confirm')}
+                    </button>
+                  </div>
+                  <button 
+                    className="btn-link text-xs text-blue-600 mt-1" 
+                    onClick={() => setShowOtpInput(false)}
+                  >
+                    {language === 'fr' ? '← Retour / Annuler' : '← Back / Cancel'}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
 
           {/* HISTORY SECTION */}
-          <div className="card">
+          <motion.div className="card" variants={itemVariants}>
             <h3 className="mb-4">{language === 'fr' ? 'Mon historique récent' : 'My recent history'}</h3>
             <div className="flex-col-gap-3">
               {history.length === 0 ? (
                 <div className="text-muted text-sm italic">{language === 'fr' ? 'Aucune action récente.' : 'No recent actions.'}</div>
               ) : history.map(t => (
-                <div key={t.id} className="p-3 border border-slate-100 rounded bg-slate-50 flex justify-between items-center">
+                <motion.div 
+                  key={t.id} 
+                  className="p-3 border border-slate-100 rounded bg-slate-50 flex justify-between items-center"
+                  whileHover={{ x: 5 }}
+                >
                   <div>
                     <div className="text-sm fw-semibold">{t.description || t.category_nom}</div>
                     <div className="text-xs text-muted">
@@ -413,15 +418,15 @@ export default function Settings() {
                   <div className={`fw-bold text-sm ${t.type === 'entree' ? 'text-success' : 'text-danger'}`}>
                     {t.type === 'entree' ? '+' : '-'}{formatMoney(t.montant, t.devise)}
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* DANGER ZONE - ADMIN ONLY */}
         {isAdmin && (
-          <div className="card col-span-full card-danger-outline mt-4">
+          <motion.div className="card col-span-full card-danger-outline mt-4" variants={itemVariants}>
             <h3 className="flex-center-gap-2 mb-2 text-danger">
               ⚠️ Zone de Danger : Passage en production
             </h3>
@@ -445,16 +450,15 @@ export default function Settings() {
                 <button 
                   className="btn btn-danger" 
                   onClick={handleResetApp}
-                  disabled={loading || resetConfirm !== 'PRODUCTION'}
+                  disabled={resetMutation.isPending || resetConfirm !== 'PRODUCTION'}
                 >
-                  {loading ? '⏳...' : '🧹 Vider les tests'}
+                  {resetMutation.isPending ? '⏳...' : '🧹 Vider les tests'}
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
-      </div>
-
+      </motion.div>
     </Layout>
   );
 }

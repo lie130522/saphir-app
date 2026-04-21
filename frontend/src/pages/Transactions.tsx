@@ -1,4 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
 import { useAuth } from '../contexts/useAuth';
@@ -20,13 +22,19 @@ interface TransactionForm {
   is_remboursable: boolean;
 }
 
+const tableVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.02 } }
+};
+
+const rowVariants = {
+  hidden: { opacity: 0, y: 5 },
+  visible: { opacity: 1, y: 0 }
+};
+
 export default function Transactions() {
   const { isComptable } = useAuth();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const queryClient = useQueryClient();
 
   // Filters
   const [fDateDebut, setFDateDebut] = useState('');
@@ -36,7 +44,6 @@ export default function Transactions() {
 
   // Modal form
   const [modal, setModal] = useState(false);
-  const [loading, setLoading] = useState(false);
   const EMPTY: TransactionForm = { 
     date: today(), 
     type: 'sortie', 
@@ -57,79 +64,98 @@ export default function Transactions() {
 
   // Docs modal
   const [docsModal, setDocsModal] = useState<Transaction | null>(null);
-  const [transDocs, setTransDocs] = useState<Document[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [uploadType, setUploadType] = useState('justificatif');
 
-  const loadData = useCallback(() => {
-    const q = new URLSearchParams();
-    if (fDateDebut) q.append('date_debut', fDateDebut);
-    if (fDateFin) q.append('date_fin', fDateFin);
-    if (fType) q.append('type', fType);
-    if (fAccountId) q.append('account_id', fAccountId);
-    API.get(`/transactions?${q.toString()}`).then(r => {
-      const data = r.data;
-      setTransactions(Array.isArray(data) ? data : []);
-    });
-  }, [fDateDebut, fDateFin, fType, fAccountId]);
+  // Queries
+  const { data: transactions = [], isLoading: isTransLoading } = useQuery<Transaction[]>({
+    queryKey: ['transactions', { fDateDebut, fDateFin, fType, fAccountId }],
+    queryFn: async () => {
+      const q = new URLSearchParams();
+      if (fDateDebut) q.append('date_debut', fDateDebut);
+      if (fDateFin) q.append('date_fin', fDateFin);
+      if (fType) q.append('type', fType);
+      if (fAccountId) q.append('account_id', fAccountId);
+      const r = await API.get(`/transactions?${q.toString()}`);
+      return Array.isArray(r.data) ? r.data : [];
+    }
+  });
 
-  useEffect(() => { loadData(); }, [loadData]);
+  const { data: accounts = [] } = useQuery<Account[]>({ queryKey: ['accounts'], queryFn: () => API.get('/accounts').then(r => r.data) });
+  const { data: categories = [] } = useQuery<Category[]>({ queryKey: ['categories'], queryFn: () => API.get('/transactions/categories').then(r => r.data) });
+  const { data: projects = [] } = useQuery<Project[]>({ queryKey: ['projects'], queryFn: () => API.get('/projects').then(r => r.data) });
+  const { data: employees = [] } = useQuery<Employee[]>({ queryKey: ['employees'], queryFn: () => API.get('/employees').then(r => r.data) });
+  const { data: transDocs = [], isLoading: isDocsLoading } = useQuery<Document[]>({
+    queryKey: ['transaction-docs', docsModal?.id],
+    queryFn: () => docsModal ? API.get(`/documents/transaction/${docsModal.id}`).then(r => r.data) : [],
+    enabled: !!docsModal
+  });
 
-  useEffect(() => {
-    API.get('/accounts').then(r => setAccounts(r.data));
-    API.get('/transactions/categories').then(r => setCategories(r.data));
-    API.get('/projects').then(r => setProjects(r.data));
-    API.get('/employees').then(r => setEmployees(r.data));
-  }, []);
+  // Mutations
+  const saveMutation = useMutation({
+    mutationFn: async ({ payload, note }: { payload: any, note: File | null }) => {
+      let res;
+      if (editingId) res = await API.put(`/transactions/${editingId}`, payload);
+      else res = await API.post('/transactions', payload);
+      
+      if (note && res.data?.id) {
+        const fd = new FormData();
+        fd.append('file', note);
+        fd.append('type', 'reconnaissance');
+        fd.append('transaction_id', res.data.id.toString());
+        fd.append('nom', note.name);
+        await API.post('/documents/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      }
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      setModal(false); setEditingId(null); setNoteFile(null);
+    },
+    onError: (e: any) => {
+      alert(e.response?.data?.error || 'Erreur lors de l\'enregistrement');
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => API.delete(`/transactions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    },
+    onError: (e: any) => {
+      alert(e.response?.data?.error || 'Erreur lors de la suppression');
+    }
+  });
+
+  const uploadDocMutation = useMutation({
+    mutationFn: async (fd: FormData) => API.post('/documents/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transaction-docs', docsModal?.id] });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  });
+
+  const deleteDocMutation = useMutation({
+    mutationFn: (id: number) => API.delete(`/documents/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transaction-docs', docsModal?.id] });
+    }
+  });
 
   async function handleSave(ev: React.FormEvent) {
     ev.preventDefault();
-    setLoading(true);
-    try {
-      let res;
-      const payload = { 
-        ...form, 
-        montant: parseFloat(form.montant), 
-        account_id: parseInt(form.account_id), 
-        category_id: form.category_id ? parseInt(form.category_id) : null, 
-        project_id: form.project_id ? parseInt(form.project_id) : null, 
-        employee_id: form.employee_id ? parseInt(form.employee_id) : null,
-        is_remboursable: form.is_remboursable
-      };
-      console.log('TRANS PAYLOAD:', payload);
-      if (editingId) {
-        res = await API.put(`/transactions/${editingId}`, payload);
-      } else {
-        res = await API.post('/transactions', payload);
-      }
-      
-      if (noteFile && res.data?.id) {
-        const formData = new FormData();
-        formData.append('file', noteFile);
-        formData.append('type', 'reconnaissance');
-        formData.append('transaction_id', res.data.id.toString());
-        formData.append('nom', noteFile.name);
-        await API.post('/documents/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      }
-
-      setModal(false); setEditingId(null); setNoteFile(null); loadData();
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error || 'Erreur');
-    }
-    finally { setLoading(false); }
-  }
-
-  async function handleDelete(id: number) {
-    if (!confirm('Voulez-vous vraiment supprimer ou annuler cette transaction ? L\'action est irréversible.')) return;
-    try { 
-      await API.delete(`/transactions/${id}`); 
-      loadData(); 
-    } catch (e: unknown) {
-      console.error('Delete error:', e);
-      const err = e as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error || 'Erreur lors de la suppression. Veuillez vérifier vos droits.');
-    }
+    const payload = { 
+      ...form, 
+      montant: parseFloat(form.montant), 
+      account_id: parseInt(form.account_id), 
+      category_id: form.category_id ? parseInt(form.category_id) : null, 
+      project_id: form.project_id ? parseInt(form.project_id) : null, 
+      employee_id: form.employee_id ? parseInt(form.employee_id) : null,
+      is_remboursable: form.is_remboursable
+    };
+    saveMutation.mutate({ payload, note: noteFile });
   }
 
   function handleEdit(t: Transaction) {
@@ -158,40 +184,15 @@ export default function Transactions() {
   const filteredCategories = categories.filter(c => c.type === form.type && (c.nature === form.nature || c.nature === 'general'));
   const activeProjects = projects.filter(p => p.statut === 'actif');
 
-  function openDocs(t: Transaction) {
-    setDocsModal(t);
-    API.get(`/documents/transaction/${t.id}`).then(r => setTransDocs(r.data));
-  }
-
   async function handleDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !docsModal) return;
-
-    setLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', uploadType);
-    formData.append('transaction_id', docsModal.id.toString());
-    formData.append('nom', file.name);
-
-    try {
-      await API.post('/documents/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      API.get(`/documents/transaction/${docsModal.id}`).then(r => setTransDocs(r.data));
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      alert(err.response?.data?.error || 'Erreur lors de l\'upload');
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  async function handleDocDelete(id: number) {
-    if(!confirm('Supprimer ce document ?')) return;
-    try {
-      await API.delete(`/documents/${id}`);
-      setTransDocs(transDocs.filter(d => d.id !== id));
-    } catch { alert('Erreur'); }
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('type', uploadType);
+    fd.append('transaction_id', docsModal.id.toString());
+    fd.append('nom', file.name);
+    uploadDocMutation.mutate(fd);
   }
 
   return (
@@ -219,11 +220,24 @@ export default function Transactions() {
           <thead>
             <tr><th>Date</th><th>Description</th><th>Sens</th><th>Compte</th><th>Catégorie</th><th>Projet / Nature</th><th>Employé</th><th>Montant</th><th>Actions</th></tr>
           </thead>
-          <tbody>
-            {transactions.length === 0 ? (
-              <tr><td colSpan={9}><div className="empty-state"><div className="empty-state-icon">💸</div><div className="empty-state-title">Aucune transaction trouvée</div></div></td></tr>
+          <motion.tbody
+            variants={tableVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {isTransLoading ? (
+              <tr><td colSpan={9} className="text-center p-8">⏳ Chargement...</td></tr>
+            ) : transactions.length === 0 ? (
+              <motion.tr variants={rowVariants}>
+                <td colSpan={9}>
+                  <div className="empty-state">
+                    <div className="empty-state-icon">💸</div>
+                    <div className="empty-state-title">Aucune transaction trouvée</div>
+                  </div>
+                </td>
+              </motion.tr>
             ) : transactions.map(t => (
-              <tr key={t.id}>
+              <motion.tr key={t.id} variants={rowVariants} layout>
                 <td>{formatDate(t.date)}</td>
                 <td className="truncate-200">
                   {t.description || '-'}
@@ -250,168 +264,196 @@ export default function Transactions() {
                 </td>
                 <td>
                     <div className="flex-actions">
-                      <button className="btn btn-secondary btn-sm" onClick={() => openDocs(t)} title="Pièces jointes">📎</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setDocsModal(t)} title="Pièces jointes">📎</button>
                       {isComptable && <button className="btn btn-info btn-sm" onClick={() => handleEdit(t)} title="Modifier">✏️</button>}
-                      {isComptable && <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t.id)} title="Supprimer">✖</button>}
+                      {isComptable && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm('Supprimer cette transaction ?')) deleteMutation.mutate(t.id); }} title="Supprimer" disabled={deleteMutation.isPending}>
+                        {deleteMutation.isPending && deleteMutation.variables === t.id ? '...' : '✖'}
+                      </button>}
                     </div>
                 </td>
-              </tr>
+              </motion.tr>
             ))}
-          </tbody>
+          </motion.tbody>
         </table>
       </div>
 
-      {modal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div className="modal modal-lg">
-            <div className="modal-header">
-              <div className="modal-title">{editingId ? 'Modifier la transaction' : 'Enregistrer une transaction'}</div>
-              <button className="modal-close" onClick={() => { setModal(false); setEditingId(null); }}>×</button>
-            </div>
-            <form onSubmit={handleSave}>
-              <div className="modal-body">
-                <div className="flex-gap-4 mb-4">
-                  <label className="flex-center-gap-2">
-                    <input title="Dépense Fonctionnement" type="radio" name="type" checked={form.type === 'sortie' && form.nature === 'fonctionnement'} onChange={() => { handleTypeNatureChange('sortie', 'fonctionnement'); setNoteFile(null); }} /> Dépense Fonctionnement
-                  </label>
-                  <label className="flex-center-gap-2">
-                    <input title="Dépense Projet" type="radio" name="type" checked={form.type === 'sortie' && form.nature === 'projet'} onChange={() => { handleTypeNatureChange('sortie', 'projet'); setNoteFile(null); }} /> Dépense Projet
-                  </label>
-                  <label className="flex-center-gap-2">
-                    <input title="Entrée ou Encaissement" type="radio" name="type" checked={form.type === 'entree'} onChange={() => { handleTypeNatureChange('entree', 'fonctionnement'); setNoteFile(null); }} /> Entrée (Encaissement)
-                  </label>
-                </div>
-
-                <div className="form-grid form-grid-2">
-                  <div className="form-group"><label className="form-label">Date *</label><input title="Date" className="form-input" type="date" required value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
-                  <div className="form-group"><label className="form-label">Compte Caisse/Banque *</label>
-                    <select title="Compte Caisse ou Banque" className="form-select" required value={form.account_id} onChange={e => {
-                      const acc = accounts.find(a => a.id === parseInt(e.target.value));
-                      setForm({ ...form, account_id: e.target.value, devise: acc ? acc.devise : form.devise });
-                    }}>
-                      <option value="">-- Sélectionner un compte --</option>
-                      {accounts.map(a => <option key={a.id} value={a.id}>{a.nom} ({a.devise}) - Solde: {a.solde_actuel}</option>)}
-                    </select>
+      <AnimatePresence>
+        {modal && (
+          <motion.div 
+            className="modal-overlay" 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={e => e.target === e.currentTarget && setModal(false)}
+          >
+            <motion.div 
+              className="modal modal-lg"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            >
+              <div className="modal-header">
+                <div className="modal-title">{editingId ? 'Modifier la transaction' : 'Enregistrer une transaction'}</div>
+                <button className="modal-close" onClick={() => { setModal(false); setEditingId(null); }}>×</button>
+              </div>
+              <form onSubmit={handleSave}>
+                <div className="modal-body">
+                  <div className="flex-gap-4 mb-4">
+                    <label className="flex-center-gap-2 pointer">
+                      <input title="Dépense Fonctionnement" type="radio" name="type" checked={form.type === 'sortie' && form.nature === 'fonctionnement'} onChange={() => { handleTypeNatureChange('sortie', 'fonctionnement'); setNoteFile(null); }} /> Dépense Fonctionnement
+                    </label>
+                    <label className="flex-center-gap-2 pointer">
+                      <input title="Dépense Projet" type="radio" name="type" checked={form.type === 'sortie' && form.nature === 'projet'} onChange={() => { handleTypeNatureChange('sortie', 'projet'); setNoteFile(null); }} /> Dépense Projet
+                    </label>
+                    <label className="flex-center-gap-2 pointer">
+                      <input title="Entrée ou Encaissement" type="radio" name="type" checked={form.type === 'entree'} onChange={() => { handleTypeNatureChange('entree', 'fonctionnement'); setNoteFile(null); }} /> Entrée (Encaissement)
+                    </label>
                   </div>
 
-                  <div className="form-group"><label className="form-label">Montant ({form.devise}) *</label><input title="Montant" className="form-input" type="number" step="0.01" min="0.01" required value={form.montant} onChange={e => setForm({ ...form, montant: e.target.value })} /></div>
-                  
-                  <div className="form-group"><label className="form-label">Catégorie</label>
-                    <select title="Catégorie" className="form-select" value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })}>
-                      <option value="">-- Ignorer --</option>
-                      {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
-                    </select>
-                  </div>
-
-                  {form.nature === 'projet' && (
-                    <>
-                      <div className="form-group"><label className="form-label">Projet lié *</label>
-                        <select title="Projet lié" className="form-select" required value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value })}>
-                          <option value="">-- Sélectionner un projet --</option>
-                          {activeProjects.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                        </select>
-                      </div>
-                      <div className="form-group flex-center-gap-2 pointer mt-2">
-                        <input type="checkbox" id="is_remboursable" checked={form.is_remboursable} onChange={e => setForm({ ...form, is_remboursable: e.target.checked })} />
-                        <label htmlFor="is_remboursable" className="form-label mb-0 cursor-pointer">💸 Dépense remboursable par le client (Déboursé)</label>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="form-group"><label className="form-label">Employé / Responsable</label>
-                    <select title="Employé ou responsable" className="form-select" required={form.type === 'sortie'} value={form.employee_id} onChange={e => setForm({ ...form, employee_id: e.target.value })}>
-                      <option value="">-- Aucun --</option>
-                      {employees.map(e => <option key={e.id} value={e.id}>{e.nom} {e.prenom} ({e.poste})</option>)}
-                    </select>
-                  </div>
-
-                  <div className="form-group col-span-full"><label className="form-label">Description / Motif</label>
-                    <textarea title="Description" className="form-textarea" rows={2} required={form.type === 'sortie'} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-                  </div>
-                  
-                  <div className="form-group col-span-full"><label className="form-label">Référence (N° Facture, Reçu, etc.)</label>
-                    <input title="Référence" className="form-input" value={form.reference} onChange={e => setForm({ ...form, reference: e.target.value })} />
-                  </div>
-
-                  {form.type === 'sortie' && (
-                    <div className="form-group bg-secondary-box">
-                      <label className="form-label mb-1">📌 Attacher directement une Note de Reconnaissance (Optionnel)</label>
-                      <input title="Pièce jointe" type="file" className="form-input bg-white" onChange={e => setNoteFile(e.target.files?.[0] || null)} />
-                      <div className="text-sm-muted">Vous pourrez également l'attacher ou ajouter une pièce justificative (facture finale) plus tard.</div>
+                  <div className="form-grid form-grid-2">
+                    <div className="form-group"><label className="form-label">Date *</label><input title="Date" className="form-input" type="date" required value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} /></div>
+                    <div className="form-group"><label className="form-label">Compte Caisse/Banque *</label>
+                      <select title="Compte Caisse ou Banque" className="form-select" required value={form.account_id} onChange={e => {
+                        const acc = accounts.find(a => a.id === parseInt(e.target.value));
+                        setForm({ ...form, account_id: e.target.value, devise: acc ? acc.devise : form.devise });
+                      }}>
+                        <option value="">-- Sélectionner un compte --</option>
+                        {accounts.map(a => <option key={a.id} value={a.id}>{a.nom} ({a.devise}) - Solde: {a.solde_actuel}</option>)}
+                      </select>
                     </div>
-                  )}
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => { setModal(false); setEditingId(null); }}>Annuler</button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '⏳...' : '💾'} {editingId ? 'Mettre à jour' : 'Enregistrer'} transaction</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* MODAL PIECES JOINTES */}
-      {docsModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setDocsModal(null)}>
-          <div className="modal modal-lg">
-            <div className="modal-header">
-              <div className="modal-title">Pièces jointes : Transaction {docsModal.id}</div>
-              <button className="modal-close" onClick={() => setDocsModal(null)}>×</button>
-            </div>
-            <div className="modal-body">
-              <div className="bg-secondary-panel">
-                <strong>Détails :</strong> {docsModal.description || docsModal.reference} <br/>
-                <strong>Montant :</strong> {docsModal.type === 'entree' ? '+' : '-'}{formatMoney(docsModal.montant, docsModal.devise)} <br/>
-                <strong>Responsable :</strong> {docsModal.emp_nom ? `${docsModal.emp_prenom} ${docsModal.emp_nom}` : 'Non spécifié'}
-              </div>
+                    <div className="form-group"><label className="form-label">Montant ({form.devise}) *</label><input title="Montant" className="form-input" type="number" step="0.01" min="0.01" required value={form.montant} onChange={e => setForm({ ...form, montant: e.target.value })} /></div>
+                    
+                    <div className="form-group"><label className="form-label">Catégorie</label>
+                      <select title="Catégorie" className="form-select" value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })}>
+                        <option value="">-- Ignorer --</option>
+                        {filteredCategories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}
+                      </select>
+                    </div>
 
-              {isComptable && (
-                <div className="flex-end-gap-3">
-                  <div className="form-group mb-0">
-                    <label className="form-label">Type de document</label>
-                    <select title="Type de document" className="form-select" value={uploadType} onChange={e => setUploadType(e.target.value)}>
-                      {docsModal.type === 'sortie' && <option value="reconnaissance">Note de reconnaissance (Dette)</option>}
-                      <option value="justificatif">Pièce justificative (Facture/Reçu)</option>
-                    </select>
-                  </div>
-                  <input title="Document à uploader" type="file" ref={fileInputRef} className="display-none" onChange={handleDocUpload} />
-                  <button className="btn btn-primary h-42" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                    {loading ? '⏳...' : '+ Uploader document'}
-                  </button>
-                </div>
-              )}
-
-              <table className="data-table">
-                <thead>
-                  <tr><th>Nom du fichier</th><th>Type</th><th>Date d'ajout</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {transDocs.length === 0 ? (
-                    <tr><td colSpan={4} className="text-center p-5">Aucune pièce jointe.</td></tr>
-                  ) : transDocs.map(d => (
-                    <tr key={d.id}>
-                      <td className="fw-semibold">{d.nom}</td>
-                      <td>
-                        <span className={`badge ${d.type === 'reconnaissance' ? 'badge-danger' : 'badge-info'}`}>
-                          {d.type === 'reconnaissance' ? 'Note de reco.' : 'Justificatif'}
-                        </span>
-                      </td>
-                      <td>{formatDate(d.created_at)}</td>
-                      <td>
-                        <div className="flex-actions">
-                          <a href={import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL.replace('/api', '')}${d.file_url}` : d.file_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">Ouvrir</a>
-                          {isComptable && <button className="btn btn-danger btn-sm" onClick={() => handleDocDelete(d.id)}>✖</button>}
+                    {form.nature === 'projet' && (
+                      <>
+                        <div className="form-group"><label className="form-label">Projet lié *</label>
+                          <select title="Projet lié" className="form-select" required value={form.project_id} onChange={e => setForm({ ...form, project_id: e.target.value })}>
+                            <option value="">-- Sélectionner un projet --</option>
+                            {activeProjects.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+                          </select>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+                        <div className="form-group flex-center-gap-2 pointer mt-2">
+                          <input type="checkbox" id="is_remboursable" checked={form.is_remboursable} onChange={e => setForm({ ...form, is_remboursable: e.target.checked })} />
+                          <label htmlFor="is_remboursable" className="form-label mb-0 cursor-pointer">💸 Dépense remboursable (Déboursé)</label>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="form-group"><label className="form-label">Employé / Responsable</label>
+                      <select title="Employé ou responsable" className="form-select" required={form.type === 'sortie'} value={form.employee_id} onChange={e => setForm({ ...form, employee_id: e.target.value })}>
+                        <option value="">-- Aucun --</option>
+                        {employees.map(e => <option key={e.id} value={e.id}>{e.nom} {e.prenom} ({e.poste})</option>)}
+                      </select>
+                    </div>
+
+                    <div className="form-group col-span-full"><label className="form-label">Description / Motif</label>
+                      <textarea title="Description" className="form-textarea" rows={2} required={form.type === 'sortie'} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+                    </div>
+                    
+                    <div className="form-group col-span-full"><label className="form-label">Référence (N° Facture, Reçu, etc.)</label>
+                      <input title="Référence" className="form-input" value={form.reference} onChange={e => setForm({ ...form, reference: e.target.value })} />
+                    </div>
+
+                    {form.type === 'sortie' && !editingId && (
+                      <div className="form-group bg-secondary-box">
+                        <label className="form-label mb-1">📌 Note de Reconnaissance (Optionnel)</label>
+                        <input title="Pièce jointe" type="file" className="form-input bg-white" onChange={e => setNoteFile(e.target.files?.[0] || null)} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => { setModal(false); setEditingId(null); }}>Annuler</button>
+                  <button type="submit" className="btn btn-primary" disabled={saveMutation.isPending}>{saveMutation.isPending ? '⏳...' : '💾'} {editingId ? 'Mettre à jour' : 'Enregistrer'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {docsModal && (
+          <motion.div 
+            className="modal-overlay" 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={e => e.target === e.currentTarget && setDocsModal(null)}
+          >
+            <motion.div 
+              className="modal modal-lg"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            >
+              <div className="modal-header">
+                <div className="modal-title">Pièces jointes : Transaction {docsModal.id}</div>
+                <button className="modal-close" onClick={() => setDocsModal(null)}>×</button>
+              </div>
+              <div className="modal-body">
+                <div className="bg-secondary-panel mb-4 p-4 rounded">
+                  <strong>Détails :</strong> {docsModal.description || docsModal.reference} <br/>
+                  <strong>Montant :</strong> {docsModal.type === 'entree' ? '+' : '-'}{formatMoney(docsModal.montant, docsModal.devise)}
+                </div>
+
+                {isComptable && (
+                  <div className="flex-end-gap-3 mb-4">
+                    <div className="form-group mb-0">
+                      <select title="Type de document" className="form-select" value={uploadType} onChange={e => setUploadType(e.target.value)}>
+                        {docsModal.type === 'sortie' && <option value="reconnaissance">Note de reconnaissance</option>}
+                        <option value="justificatif">Justificatif (Facture/Reçu)</option>
+                      </select>
+                    </div>
+                    <input title="Document à uploader" type="file" ref={fileInputRef} className="display-none" onChange={handleDocUpload} />
+                    <button className="btn btn-primary h-42" onClick={() => fileInputRef.current?.click()} disabled={uploadDocMutation.isPending}>
+                      {uploadDocMutation.isPending ? '⏳...' : '+ Uploader'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr><th>Fichier</th><th>Type</th><th>Date</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody>
+                      {isDocsLoading ? (
+                        <tr><td colSpan={4} className="text-center p-5">⏳ Chargement...</td></tr>
+                      ) : transDocs.length === 0 ? (
+                        <tr><td colSpan={4} className="text-center p-5">Aucune pièce jointe.</td></tr>
+                      ) : transDocs.map(d => (
+                        <tr key={d.id}>
+                          <td className="fw-semibold">{d.nom}</td>
+                          <td>
+                            <span className={`badge ${d.type === 'reconnaissance' ? 'badge-danger' : 'badge-info'}`}>
+                              {d.type === 'reconnaissance' ? 'Note de reco.' : 'Justificatif'}
+                            </span>
+                          </td>
+                          <td>{formatDate(d.created_at)}</td>
+                          <td>
+                            <div className="flex-actions">
+                              <a href={import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL.replace('/api', '')}${d.file_url}` : d.file_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">Ouvrir</a>
+                              {isComptable && <button className="btn btn-danger btn-sm" onClick={() => { if(confirm('Supprimer ?')) deleteDocMutation.mutate(d.id); }} disabled={deleteDocMutation.isPending}>✖</button>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

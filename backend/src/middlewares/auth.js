@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'saphir_secret_2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET non défini dans .env');
+  process.exit(1);
+}
 
 function authenticate(req, res, next) {
   const auth = req.headers.authorization;

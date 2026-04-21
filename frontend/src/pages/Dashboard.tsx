@@ -1,32 +1,66 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatMoney, formatDate } from '../utils/formatters';
 import type { DashboardData, Transaction } from '../types';
+import { Skeleton, CardSkeleton } from '../components/Skeleton';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 24
+    }
+  }
+};
 
 export default function Dashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
   const [chartDevise, setChartDevise] = useState<'USD' | 'CDF'>('USD');
 
-  useEffect(() => {
-    API.get('/reports/dashboard')
-      .then(r => {
-        // Validate the response has the expected structure
-        if (r.data && Array.isArray(r.data.accounts)) {
-          setData(r.data);
-        } else {
-          setError(true);
-        }
-      })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, isLoading, isError } = useQuery<DashboardData>({
+    queryKey: ['dashboard-data'],
+    queryFn: async () => {
+      const r = await API.get('/reports/dashboard');
+      if (!r.data || !Array.isArray(r.data.accounts)) {
+        throw new Error('Invalid data structure');
+      }
+      return r.data;
+    }
+  });
 
-  if (loading) return <Layout title="Tableau de bord"><div className="loading-box">⏳ Chargement...</div></Layout>;
-  if (error || !data) return (
+  if (isLoading) {
+    return (
+      <Layout title="Tableau de bord">
+        <div className="stat-grid mb-6">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+        <div className="card p-6 h-64">
+          <Skeleton height="100%" />
+        </div>
+      </Layout>
+    );
+  }
+  if (isError || !data) return (
     <Layout title="Tableau de bord">
       <div className="loading-box">
         ⚠️ Impossible de charger le tableau de bord. Vérifiez la connexion au serveur.
@@ -50,53 +84,69 @@ export default function Dashboard() {
   return (
     <Layout title="Tableau de bord" subtitle="Vue d'ensemble de la trésorerie">
       {/* Main balances */}
-      <div className="stat-grid">
-        <div className="stat-card card-accent-blue">
+      <motion.div 
+        className="stat-grid"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div variants={itemVariants} className="stat-card card-accent-blue" whileHover={{ y: -5 }}>
           <div className="stat-card-icon">💵</div>
           <div className="stat-card-label">Solde Total USD</div>
           <div className={`stat-card-value ${totalUSD >= 0 ? 'text-success' : 'text-danger'}`}>{formatMoney(totalUSD, 'USD')}</div>
           <div className="stat-card-sub">Caisse: {formatMoney(caisseUSD, 'USD')} · Banque: {formatMoney(banqueUSD, 'USD')}</div>
-        </div>
-        <div className="stat-card card-accent-cyan">
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="stat-card card-accent-cyan" whileHover={{ y: -5 }}>
           <div className="stat-card-icon">🏦</div>
           <div className="stat-card-label">Solde Total CDF</div>
           <div className={`stat-card-value ${totalCDF >= 0 ? 'text-success' : 'text-danger'}`}>{formatMoney(totalCDF, 'CDF')}</div>
           <div className="stat-card-sub">Caisse: {formatMoney(caisseCDF, 'CDF')} · Banque: {formatMoney(banqueCDF, 'CDF')}</div>
-        </div>
-        <div className="stat-card card-accent-emerald">
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="stat-card card-accent-emerald" whileHover={{ y: -5 }}>
           <div className="stat-card-icon">📥</div>
           <div className="stat-card-label">Entrées ce mois (USD)</div>
           <div className="stat-card-value amount-positive">{formatMoney(data.month.entrees_usd, 'USD')}</div>
           <div className="stat-card-sub">CDF: {formatMoney(data.month.entrees_cdf, 'CDF')}</div>
-        </div>
-        <div className="stat-card card-accent-red">
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="stat-card card-accent-red" whileHover={{ y: -5 }}>
           <div className="stat-card-icon">📤</div>
           <div className="stat-card-label">Sorties ce mois (USD)</div>
           <div className="stat-card-value amount-negative">{formatMoney(data.month.sorties_usd, 'USD')}</div>
           <div className="stat-card-sub">CDF: {formatMoney(data.month.sorties_cdf, 'CDF')}</div>
-        </div>
-        <div className="stat-card card-accent-amber">
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="stat-card card-accent-amber" whileHover={{ y: -5 }}>
           <div className="stat-card-icon">📁</div>
           <div className="stat-card-label">Projets actifs</div>
           <div className="stat-card-value">{data.stats.activeProjects}</div>
-        </div>
-        <div className="stat-card card-accent-purple">
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="stat-card card-accent-purple" whileHover={{ y: -5 }}>
           <div className="stat-card-icon">👥</div>
           <div className="stat-card-label">Employés</div>
           <div className="stat-card-value">{data.stats.totalEmployees}</div>
           <div className="stat-card-sub">{data.stats.totalTransactions} transactions au total</div>
-        </div>
-        <div className="stat-card card-accent-indigo">
+        </motion.div>
+        
+        <motion.div variants={itemVariants} className="stat-card card-accent-indigo" whileHover={{ y: -5 }}>
           <div className="stat-card-icon">💸</div>
           <div className="stat-card-label">Débours (Remboursables)</div>
           <div className={`stat-card-value text-warning`}>{formatMoney(data.stats.disbursements_usd, 'USD')}</div>
           <div className="stat-card-sub">CDF: {formatMoney(data.stats.disbursements_cdf, 'CDF')}</div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       <div className="dashboard-grid">
         {/* Chart */}
-        <div className="chart-container">
+        <motion.div 
+          className="chart-container"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2 }}
+        >
           <div className="flex-between mb-4">
             <div className="chart-title">📊 Entrées vs Sorties – 6 derniers mois</div>
             <div className="flex-gap-1">
@@ -115,10 +165,15 @@ export default function Dashboard() {
               <Bar dataKey="Sorties" fill="#ef4444" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </motion.div>
 
         {/* Account balances */}
-        <div className="card">
+        <motion.div 
+          className="card"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+        >
           <div className="chart-title">🏦 Soldes par compte</div>
           <div className="flex-col gap-2 mt-2">
             {data.accounts.map(a => (
@@ -136,11 +191,16 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Recent transactions */}
-      <div className="card">
+      <motion.div 
+        className="card"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+      >
         <div className="chart-title">🕐 Dernières transactions</div>
         <div className="table-wrapper mt-3">
           <table className="data-table">
@@ -170,7 +230,7 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
-      </div>
+      </motion.div>
     </Layout>
   );
 }

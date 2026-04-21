@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import Sidebar from './Sidebar';
+import GlobalSearch from '../Search/GlobalSearch';
 
 interface Props { title: string; subtitle?: string; children: ReactNode; actions?: ReactNode; }
 
@@ -24,6 +25,7 @@ export default function Layout({ title, subtitle, children, actions }: Props) {
           </div>
           
           <div className="topbar-right">
+            <GlobalSearch />
             <span className="topbar-date">{now}</span>
             <div className="actions-wrapper">
               {actions}

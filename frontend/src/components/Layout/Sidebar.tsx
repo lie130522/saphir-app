@@ -11,6 +11,7 @@ const navItems = [
   { to: '/transactions', icon: '💸', labelKey: 'transactions', section: '' },
   { to: '/comptes', icon: '🏦', labelKey: 'accounts', section: '' },
   { to: '/rapports', icon: '📈', labelKey: 'reports', section: '' },
+  { to: '/archives', icon: '🗄️', labelKey: 'archives', section: '' },
   { to: '/documents', icon: '🗂️', labelKey: 'documents', section: '' },
   { to: '/employes', icon: '👥', labelKey: 'employees', section: 'GESTION' },
   { to: '/projets', icon: '📁', labelKey: 'projects', section: '' },

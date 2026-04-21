@@ -109,6 +109,27 @@ async function initDB() {
         value TEXT NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      CREATE TABLE IF NOT EXISTS archived_operations (
+        id SERIAL PRIMARY KEY,
+        date DATE NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        libelle TEXT NOT NULL,
+        montant DECIMAL(15,2) DEFAULT 0,
+        currency VARCHAR(3),
+        sens VARCHAR(50),
+        justificatif_url TEXT,
+        responsable VARCHAR(255),
+        projet_id VARCHAR(50),
+        projet_nom VARCHAR(255),
+        source VARCHAR(50) DEFAULT 'imported_excel',
+        month_year VARCHAR(7) NOT NULL,
+        imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_archived_date ON archived_operations(date);
+      CREATE INDEX IF NOT EXISTS idx_archived_libelle ON archived_operations(libelle);
+      CREATE INDEX IF NOT EXISTS idx_archived_projet ON archived_operations(projet_nom);
+      CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+      CREATE INDEX IF NOT EXISTS idx_transactions_project ON transactions(project_id);
     `);
 
     // Insert minimal seeding if tables are empty

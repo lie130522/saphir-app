@@ -1,5 +1,7 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/PageTransition';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/useAuth';
 
@@ -10,6 +12,7 @@ import Projects from './pages/Projects';
 import Accounts from './pages/Accounts';
 import Transactions from './pages/Transactions';
 import Reports from './pages/Reports';
+import RapportsArchives from './pages/RapportsArchives';
 import Documents from './pages/Documents';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
@@ -23,20 +26,25 @@ function ProtectedRoute({ children, reqRole }: { children: React.ReactNode, reqR
 }
 
 function AppRoutes() {
+  const location = useLocation();
+  
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/employes" element={<ProtectedRoute><Employees /></ProtectedRoute>} />
-      <Route path="/projets" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-      <Route path="/comptes" element={<ProtectedRoute><Accounts /></ProtectedRoute>} />
-      <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
-      <Route path="/rapports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-      <Route path="/documents" element={<ProtectedRoute><Documents /></ProtectedRoute>} />
-      <Route path="/utilisateurs" element={<ProtectedRoute reqRole="admin"><Users /></ProtectedRoute>} />
-      <Route path="/parametres" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+        <Route path="/" element={<ProtectedRoute><PageTransition><Dashboard /></PageTransition></ProtectedRoute>} />
+        <Route path="/employes" element={<ProtectedRoute><PageTransition><Employees /></PageTransition></ProtectedRoute>} />
+        <Route path="/projets" element={<ProtectedRoute><PageTransition><Projects /></PageTransition></ProtectedRoute>} />
+        <Route path="/comptes" element={<ProtectedRoute><PageTransition><Accounts /></PageTransition></ProtectedRoute>} />
+        <Route path="/transactions" element={<ProtectedRoute><PageTransition><Transactions /></PageTransition></ProtectedRoute>} />
+        <Route path="/rapports" element={<ProtectedRoute><PageTransition><Reports /></PageTransition></ProtectedRoute>} />
+        <Route path="/archives" element={<ProtectedRoute><PageTransition><RapportsArchives /></PageTransition></ProtectedRoute>} />
+        <Route path="/documents" element={<ProtectedRoute><PageTransition><Documents /></PageTransition></ProtectedRoute>} />
+        <Route path="/utilisateurs" element={<ProtectedRoute reqRole="admin"><PageTransition><Users /></PageTransition></ProtectedRoute>} />
+        <Route path="/parametres" element={<ProtectedRoute><PageTransition><Settings /></PageTransition></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AnimatePresence>
   );
 }
 

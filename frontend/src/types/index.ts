@@ -122,14 +122,22 @@ export interface Report {
 
 export interface ReportContent {
   titre: string;
+  type: 'rapide' | 'detaille';
   date_debut?: string;
   date_fin?: string;
-  documents: { id: number; nom: string; created_at: string }[];
+  documents: { id: number; nom: string; created_at: string; type: string }[];
   fonctionnement: {
     entrees: { total: number; devise: 'USD' | 'CDF' }[];
     sorties: { total: number; devise: 'USD' | 'CDF' }[];
+    transactions?: Transaction[];
   };
-  projets: (Project & { total_depense: number; devise_depense: 'USD' | 'CDF'; emp_nom: string; emp_prenom: string })[];
+  projets: (Project & { 
+    total_depense: number; 
+    devise_depense: 'USD' | 'CDF'; 
+    emp_nom?: string; 
+    emp_prenom?: string;
+    transactions?: Transaction[];
+  })[];
 }
 
 export interface DecodedReport extends Omit<Report, 'contenu'> {

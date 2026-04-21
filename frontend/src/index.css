@@ -26,6 +26,7 @@
   
   --radius: 8px;
   --radius-lg: 12px;
+  --skeleton-bg: #ececec;
 }
 
 [data-theme='dark'] {
@@ -678,6 +679,10 @@ body {
 .report-project-card { margin-bottom: 24px; padding: 16px; border: 1px solid var(--border-color); border-radius: 8px; }
 .report-signature { margin-top: 40px; padding-top: 20px; border-top: 1px dashed var(--border-color); text-align: right; }
 
+.report-table { width: 100%; border-collapse: collapse; text-align: left; max-width: 600px; }
+.report-table th { border-bottom: 1px solid var(--border-color); padding: 8px; }
+.report-table td { padding: 8px; vertical-align: top; }
+
 .stat-card {
   background: var(--bg-card);
   padding: 20px;
@@ -877,4 +882,122 @@ body {
     display: flex;
     gap: 8px;
   }
+}
+
+/* Login Page Special */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--primary); /* Use the CSS variable for consistency */
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 20px 40px -10px rgba(14, 165, 233, 0.3);
+  color: white;
+}
+
+.dark .login-card {
+  background: var(--primary);
+}
+
+.login-logo {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-logo-icon {
+  width: 64px;
+  height: 64px;
+  background: white;
+  color: var(--primary);
+  font-size: 32px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  margin: 0 auto 16px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.login-logo h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: white;
+}
+
+.login-logo p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.login-card .form-label {
+  color: white;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.login-card .form-input {
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: var(--text-main);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 15px;
+  transition: all 0.3s;
+}
+
+.login-card .form-input:focus {
+  background: white;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+.login-card .btn-primary {
+  height: 48px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 16px;
+  background: #0ea5e9; /* Light blue button on blue card should be distinct or white */
+  background: white;
+  color: var(--primary);
+  border: none;
+  margin-top: 12px;
+}
+
+.login-card .btn-primary:hover {
+  transform: translateY(-2px);
+  background: #f8fafc;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.1);
+}
+
+.login-card .error-msg {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-footer-info {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
 }

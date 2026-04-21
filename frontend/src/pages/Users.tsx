@@ -1,13 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
 import type { User } from '../types';
 
+const tableVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+};
+
+const rowVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0 }
+};
+
 export default function Users() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
+  const queryClient = useQueryClient();
+  const [modal, setModal] = useState(false);
   const [formData, setFormData] = useState({
     id: 0,
     nom: '',
@@ -18,28 +28,44 @@ export default function Users() {
     sendInvite: true
   });
 
-  const loadUsers = async () => {
-    try {
-      const res = await API.get('/auth/users');
-      setUsers(res.data);
-    } catch(e) {
-      console.error(e);
-    }
-  };
+  const { data: users = [], isLoading } = useQuery<User[]>({
+    queryKey: ['users'],
+    queryFn: () => API.get('/auth/users').then(r => r.data)
+  });
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  const saveMutation = useMutation({
+    mutationFn: (data: any) => {
+      if (data.id) return API.put(`/auth/users/${data.id}`, data);
+      return API.post('/auth/users', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setModal(false);
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.error || 'Erreur lors de l\'enregistrement');
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => API.delete(`/auth/users/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.error || 'Erreur lors de la suppression');
+    }
+  });
 
   const handleOpenModal = (u?: User) => {
     if (u) {
       setFormData({
         id: u.id,
-        nom: u.nom,
+        nom: u.nom || '',
         email: u.email,
         telephone: u.telephone || '',
         role: u.role,
-        password: '', // Don't show password, only needed if changing
+        password: '',
         sendInvite: false
       });
     } else {
@@ -53,37 +79,17 @@ export default function Users() {
         sendInvite: true
       });
     }
-    setIsModalOpen(true);
+    setModal(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      if (formData.id) {
-        await API.put(`/auth/users/${formData.id}`, formData);
-      } else {
-        await API.post('/auth/users', formData);
-      }
-      setIsModalOpen(false);
-      loadUsers();
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      alert(e.response?.data?.error || 'Erreur lors de l\'enregistrement');
-    } finally {
-      setLoading(false);
-    }
+    saveMutation.mutate(formData);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (!confirm('Désactiver ou supprimer cet utilisateur ?')) return;
-    try {
-      await API.delete(`/auth/users/${id}`);
-      loadUsers();
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      alert(e.response?.data?.error || 'Erreur lors de la suppression');
-    }
+    deleteMutation.mutate(id);
   };
 
   return (
@@ -104,9 +110,19 @@ export default function Users() {
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id}>
+          <motion.tbody
+            variants={tableVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {isLoading ? (
+              <tr><td colSpan={5} className="text-center p-8">⏳ Chargement...</td></tr>
+            ) : users.length === 0 ? (
+              <motion.tr variants={rowVariants}>
+                <td colSpan={5} className="text-center p-8">Aucun utilisateur trouvé</td>
+              </motion.tr>
+            ) : users.map(u => (
+              <motion.tr key={u.id} variants={rowVariants} layout>
                 <td className="fw-semibold">{u.nom} {u.prenom}</td>
                 <td className="text-muted">{u.email}</td>
                 <td>
@@ -122,90 +138,104 @@ export default function Users() {
                 <td>
                   <div className="flex-actions">
                     <button className="btn btn-secondary btn-sm" onClick={() => handleOpenModal(u)}>📝 Editer</button>
-                    {u.role !== 'admin' && u.actif === 1 && (
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(u.id)}>Désactiver</button>
+                    {u.email !== 'admin@saphir.cd' && (
+                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(u.id)} disabled={deleteMutation.isPending}>
+                        {deleteMutation.isPending && deleteMutation.variables === u.id ? '...' : '🗑️ Supprimer'}
+                      </button>
                     )}
                   </div>
                 </td>
-              </tr>
+              </motion.tr>
             ))}
-          </tbody>
+          </motion.tbody>
         </table>
       </div>
 
-      {isModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <form onSubmit={handleSave}>
-              <div className="modal-header">
-                <div className="modal-title">{formData.id ? 'Editer Utilisateur' : 'Nouvel Utilisateur'}</div>
-                <button type="button" className="modal-close" onClick={() => setIsModalOpen(false)}>&times;</button>
-              </div>
-              <div className="modal-body flex-col-gap-4">
-                {/* Email is always required */}
-                <div className="form-group">
-                  <label className="form-label">Email *</label>
-                  <input type="email" className="form-input" title="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+      <AnimatePresence>
+        {modal && (
+          <motion.div 
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setModal(false)}
+          >
+            <motion.div 
+              className="modal"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <form onSubmit={handleSave}>
+                <div className="modal-header">
+                  <div className="modal-title">{formData.id ? 'Editer Utilisateur' : 'Nouvel Utilisateur'}</div>
+                  <button type="button" className="modal-close" onClick={() => setModal(false)}>&times;</button>
                 </div>
-
-                {/* Name and Phone only if editing OR NOT inviting */}
-                {(formData.id > 0 || !formData.sendInvite) && (
-                  <>
-                    <div className="form-group">
-                      <label className="form-label">Nom complet *</label>
-                      <input type="text" className="form-input" title="Nom complet" required value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} />
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Téléphone</label>
-                      <input type="tel" className="form-input" title="Téléphone" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
-                    </div>
-                  </>
-                )}
-                <div className="form-group">
-                  <label className="form-label">Rôle *</label>
-                  <select className="form-input" title="Rôle" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as User['role']})}>
-                    <option value="consultant">Consultant / Observateur</option>
-                    <option value="comptable">Comptable / Caisse</option>
-                    <option value="admin">Administrateur</option>
-                  </select>
-                </div>
-                {!formData.id && (
-                  <div className="form-group flex items-center gap-2">
-                    <input 
-                      type="checkbox" 
-                      id="sendInvite" 
-                      title="Envoyer une invitation par e-mail"
-                      checked={formData.sendInvite} 
-                      onChange={e => setFormData({...formData, sendInvite: e.target.checked})} 
-                    />
-                    <label htmlFor="sendInvite" className="form-label mb-0 cursor-pointer">
-                      Envoyer une invitation par e-mail (Mot de passe auto-généré)
-                    </label>
+                <div className="modal-body flex-col-gap-4">
+                  <div className="form-group">
+                    <label className="form-label">Email *</label>
+                    <input type="email" className="form-input" title="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                   </div>
-                )}
-                <div className="form-group">
-                  <label className="form-label">{formData.id ? 'Mot de passe (laisser vide pour ne pas modifier)' : 'Mot de passe *'}</label>
-                  <input 
-                    type="password" 
-                    title="Mot de passe" 
-                    className="form-input" 
-                    required={!formData.id && !formData.sendInvite} 
-                    disabled={!formData.id && formData.sendInvite}
-                    placeholder={!formData.id && formData.sendInvite ? 'Généré automatiquement' : ''}
-                    value={formData.password} 
-                    onChange={e => setFormData({...formData, password: e.target.value})} 
-                    minLength={6} 
-                  />
+
+                  {(formData.id > 0 || !formData.sendInvite) && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">Nom complet *</label>
+                        <input type="text" className="form-input" title="Nom complet" required value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Téléphone</label>
+                        <input type="tel" className="form-input" title="Téléphone" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
+                      </div>
+                    </>
+                  )}
+                  <div className="form-group">
+                    <label className="form-label">Rôle *</label>
+                    <select className="form-input" title="Rôle" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as User['role']})}>
+                      <option value="consultant">Consultant / Observateur</option>
+                      <option value="comptable">Comptable / Caisse</option>
+                      <option value="admin">Administrateur</option>
+                    </select>
+                  </div>
+                  {!formData.id && (
+                    <div className="form-group flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        id="sendInvite" 
+                        title="Envoyer une invitation par e-mail"
+                        checked={formData.sendInvite} 
+                        onChange={e => setFormData({...formData, sendInvite: e.target.checked})} 
+                      />
+                      <label htmlFor="sendInvite" className="form-label mb-0 cursor-pointer">
+                        Envoyer une invitation par e-mail (Mot de passe auto-généré)
+                      </label>
+                    </div>
+                  )}
+                  <div className="form-group">
+                    <label className="form-label">{formData.id ? 'Mot de passe (laisser vide pour ne pas modifier)' : 'Mot de passe *'}</label>
+                    <input 
+                      type="password" 
+                      title="Mot de passe" 
+                      className="form-input" 
+                      required={!formData.id && !formData.sendInvite} 
+                      disabled={!formData.id && formData.sendInvite}
+                      placeholder={!formData.id && formData.sendInvite ? 'Généré automatiquement' : ''}
+                      value={formData.password} 
+                      onChange={e => setFormData({...formData, password: e.target.value})} 
+                      minLength={6} 
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Annuler</button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '...' : 'Enregistrer'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={() => setModal(false)}>Annuler</button>
+                  <button type="submit" className="btn btn-primary" disabled={saveMutation.isPending}>{saveMutation.isPending ? '...' : 'Enregistrer'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

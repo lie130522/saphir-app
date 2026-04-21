@@ -170,13 +170,13 @@ router.post('/narrative/generate', authenticate, requireRole('admin', 'comptable
     let dateFilter = '';
     let params = [];
     if (date_debut && date_fin) {
-      dateFilter = ' AND t.date >= $1 AND t.date <= $2';
+      dateFilter = ' AND date >= $1 AND date <= $2';
       params = [date_debut, date_fin];
     } else if (date_debut) {
-      dateFilter = ' AND t.date = $1';
+      dateFilter = ' AND date = $1';
       params = [date_debut];
     } else if (date_fin) {
-      dateFilter = ' AND t.date = $1';
+      dateFilter = ' AND date = $1';
       params = [date_fin];
     }
 
@@ -187,20 +187,105 @@ router.post('/narrative/generate', authenticate, requireRole('admin', 'comptable
     else if (date_debut) { docFilter = ' AND DATE(created_at) = $1'; docParams = [date_debut]; }
     else if (date_fin) { docFilter = ' AND DATE(created_at) = $1'; docParams = [date_fin]; }
     
-    const { rows: docs } = await pool.query(`SELECT id, nom, created_at FROM documents WHERE type = 'admin' ${docFilter} ORDER BY created_at ASC`, docParams);
+    // docs Live 
+    const { rows: docsLive } = await pool.query(`SELECT id, nom, created_at FROM documents WHERE type = 'admin' ${docFilter} ORDER BY created_at ASC`, docParams);
+    
+    // docs Archives (type='reunion')
+    let arcDocFilter = '';
+    if (date_debut && date_fin) { arcDocFilter = ' AND date >= $1 AND date <= $2'; }
+    else if (date_debut) { arcDocFilter = ' AND date = $1';  }
+    else if (date_fin) { arcDocFilter = ' AND date = $1'; }
+    const { rows: docsArc } = await pool.query(`SELECT id, libelle as nom, date as created_at FROM archived_operations WHERE type = 'reunion' ${arcDocFilter} ORDER BY date ASC`, params);
+    
+    const docs = [...docsLive, ...docsArc];
 
-    // 2. Fonctionnement interne (Entrees et Sorties)
-    const { rows: f_entrees } = await pool.query(`SELECT devise, SUM(montant) as total FROM transactions t WHERE nature = 'fonctionnement' AND type = 'entree' ${dateFilter} GROUP BY devise`, params);
-    const { rows: f_sorties } = await pool.query(`SELECT devise, SUM(montant) as total FROM transactions t WHERE nature = 'fonctionnement' AND type = 'sortie' ${dateFilter} GROUP BY devise`, params);
+    // 2. Fonctionnement interne (Entrees et Sorties) -> nature = 'fonctionnement' in live OR projet_nom IS NULL in archives
+    const fEntreesQuery = `
+      SELECT devise, SUM(montant) as total FROM (
+        SELECT devise, montant FROM transactions WHERE nature = 'fonctionnement' AND type = 'entree' ${dateFilter.replace(/date/g, 'date')}
+        UNION ALL
+        SELECT currency as devise, montant FROM archived_operations WHERE (projet_nom IS NULL OR projet_nom = '') AND type = 'entree' ${dateFilter.replace(/date/g, 'date')}
+      ) as combined GROUP BY devise
+    `;
+    const { rows: f_entrees } = await pool.query(fEntreesQuery, params);
 
-    // 3. Projets
+    const fSortiesQuery = `
+      SELECT devise, SUM(montant) as total FROM (
+        SELECT devise, montant FROM transactions WHERE nature = 'fonctionnement' AND type = 'sortie' ${dateFilter.replace(/date/g, 'date')}
+        UNION ALL
+        SELECT currency as devise, montant FROM archived_operations WHERE (projet_nom IS NULL OR projet_nom = '') AND type = 'sortie' ${dateFilter.replace(/date/g, 'date')}
+      ) as combined GROUP BY devise
+    `;
+    const { rows: f_sorties } = await pool.query(fSortiesQuery, params);
+
+
+    let f_transactions = [];
+    if (type === 'detaille') {
+      const { rows: ft } = await pool.query(`
+        SELECT date, montant, devise, type, description, category_nom, emp_nom, emp_prenom FROM (
+          SELECT t.date, t.montant, t.devise, t.type, t.description, 
+                 c.nom as category_nom, e.nom as emp_nom, e.prenom as emp_prenom
+          FROM transactions t
+          LEFT JOIN categories c ON t.category_id = c.id
+          LEFT JOIN employees e ON t.employee_id = e.id
+          WHERE t.nature = 'fonctionnement' ${dateFilter.replace(/date/g, 't.date')}
+          
+          UNION ALL
+          
+          SELECT date, montant, currency as devise, type, libelle as description, 
+                 'Archive' as category_nom, responsable as emp_nom, '' as emp_prenom
+          FROM archived_operations
+          WHERE (projet_nom IS NULL OR projet_nom = '') AND type IN ('entree', 'sortie') ${dateFilter}
+        ) as all_f
+        ORDER BY date ASC
+      `, params);
+      f_transactions = ft;
+    }
+
+    // 3. Projets (nature = 'projet' in live OR projet_nom IS NOT NULL in archives)
     const { rows: projExp } = await pool.query(`
-      SELECT p.id, p.nom, p.statut, p.budget_usd, p.budget_cdf, SUM(t.montant) as total_depense, t.devise as devise_depense
-      FROM projects p
-      LEFT JOIN transactions t ON p.id = t.project_id
-      WHERE t.nature = 'projet' AND t.type = 'sortie' ${dateFilter.replace(/t\.date/g, 't.date')}
-      GROUP BY p.id, t.devise
+      SELECT p_id as id, p_nom as nom, p_statut as statut, budget_usd, budget_cdf, SUM(montant) as total_depense, devise as devise_depense FROM (
+        SELECT p.id as p_id, p.nom as p_nom, p.statut as p_statut, p.budget_usd, p.budget_cdf, t.montant, t.devise
+        FROM projects p
+        INNER JOIN transactions t ON p.id = t.project_id
+        WHERE t.nature = 'projet' AND t.type = 'sortie' ${dateFilter.replace(/date/g, 't.date')}
+        
+        UNION ALL
+        
+        SELECT 
+          projet_id as p_id, 
+          projet_nom as p_nom, 
+          'Archive' as p_statut, 
+          0 as budget_usd, 0 as budget_cdf, montant, currency as devise
+        FROM archived_operations
+        WHERE projet_nom IS NOT NULL AND projet_nom != '' AND type = 'sortie' ${dateFilter}
+      ) as combined_p
+      GROUP BY p_id, p_nom, p_statut, budget_usd, budget_cdf, devise
     `, params);
+
+    let projTransactions = [];
+    if (type === 'detaille') {
+      const { rows: pt } = await pool.query(`
+        SELECT project_id, date, montant, devise, description, category_nom, emp_nom, emp_prenom FROM (
+          SELECT t.project_id as project_id, t.date, t.montant, t.devise, t.description,
+                 c.nom as category_nom, e.nom as emp_nom, e.prenom as emp_prenom, p.nom as p_nom
+          FROM transactions t
+          LEFT JOIN categories c ON t.category_id = c.id
+          LEFT JOIN employees e ON t.employee_id = e.id
+          LEFT JOIN projects p ON t.project_id = p.id
+          WHERE t.nature = 'projet' ${dateFilter.replace(/date/g, 't.date')}
+          
+          UNION ALL
+          
+          SELECT projet_id as project_id, date, montant, currency as devise, libelle as description,
+                 'Archive' as category_nom, responsable as emp_nom, '' as emp_prenom, projet_nom as p_nom
+          FROM archived_operations
+          WHERE projet_nom IS NOT NULL AND projet_nom != '' AND type = 'sortie' ${dateFilter}
+        ) as all_pt
+        ORDER BY date ASC
+      `, params);
+      projTransactions = pt;
+    }
 
     const reportData = {
       titre: `Rapport ${type === 'detaille' ? 'Détaillé' : 'Rapide'} - ${date_debut && date_fin ? `Du ${date_debut} au ${date_fin}` : date_debut ? date_debut : 'Toutes périodes'}`,
@@ -210,9 +295,14 @@ router.post('/narrative/generate', authenticate, requireRole('admin', 'comptable
       documents: docs,
       fonctionnement: {
         entrees: f_entrees,
-        sorties: f_sorties
+        sorties: f_sorties,
+        transactions: f_transactions
       },
-      projets: projExp,
+      projets: projExp.map(p => ({
+        ...p,
+        // Match by id or by name to support legacy string projects
+        transactions: projTransactions.filter(pt => pt.project_id === p.id || pt.p_nom === p.nom)
+      })),
       generated_at: new Date().toISOString()
     };
 
@@ -225,6 +315,7 @@ router.post('/narrative/generate', authenticate, requireRole('admin', 'comptable
 
     res.status(201).json({ id: reportRows[0].id, ...reportData });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

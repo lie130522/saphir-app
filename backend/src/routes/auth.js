@@ -6,7 +6,11 @@ const { authenticate, requireRole } = require('../middlewares/auth');
 const { sendVerificationCode, sendInvitationEmail } = require('../services/emailService');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'saphir_secret_2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET non défini dans .env');
+  process.exit(1);
+}
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -14,7 +18,7 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
 
   try {
-    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1 AND actif = 1', [email]);
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1 AND (actif = 1 OR actif = 2)', [email]);
     const user = rows[0];
     if (!user) return res.status(401).json({ error: 'Identifiants incorrects' });
 

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/useAuth';
+import BackgroundAnimation from '../components/BackgroundAnimation';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -27,32 +29,78 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card">
+      <BackgroundAnimation />
+      <motion.div 
+        className="login-card"
+        style={{ zIndex: 1 }}
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
         <div className="login-logo">
-          <div className="login-logo-icon">S</div>
+          <motion.div 
+            className="login-logo-icon"
+            initial={{ rotate: -20, scale: 0.5 }}
+            animate={{ rotate: 0, scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 260, damping: 20 }}
+          >
+            S
+          </motion.div>
           <h1>Saphir</h1>
           <p>Système de gestion administrative</p>
         </div>
 
-        {error && <div className="error-msg">⚠️ {error}</div>}
+        {error && (
+          <motion.div 
+            className="error-msg"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <span>⚠️</span> {error}
+          </motion.div>
+        )}
 
-        <form onSubmit={handleSubmit} className="form-grid">
+        <form onSubmit={handleSubmit} className="flex-col-gap-4">
           <div className="form-group">
             <label className="form-label">Adresse email</label>
-            <input title="Adresse email" type="email" className="form-input" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@saphir.cd" required />
+            <input 
+              title="Adresse email" 
+              type="email" 
+              className="form-input" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              placeholder="email@saphir.cd" 
+              required 
+            />
           </div>
           <div className="form-group">
             <label className="form-label">Mot de passe</label>
-            <input title="Mot de passe" type="password" className="form-input" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
+            <input 
+              title="Mot de passe" 
+              type="password" 
+              className="form-input" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              placeholder="••••••••" 
+              required 
+            />
           </div>
-          <button type="submit" className="btn btn-primary w-full justify-center mt-2" disabled={loading}>
-            {loading ? '⏳ Connexion...' : '🔑 Se connecter'}
-          </button>
+          <motion.button 
+            type="submit" 
+            className="btn btn-primary w-full justify-center mt-2" 
+            disabled={loading}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {loading ? '⏳ Connexion...' : '🚀 Se connecter'}
+          </motion.button>
         </form>
-        <p className="text-center mt-4 text-[11px] text-muted">
-          Compte par défaut: admin@saphir.cd / admin123
-        </p>
-      </div>
+        
+        <div className="login-footer-info">
+          <p>Compte par défaut : admin@saphir.cd / admin123</p>
+          <p className="mt-2 opacity-50">&copy; 2026 Saphir Group. Tous droits réservés.</p>
+        </div>
+      </motion.div>
     </div>
   );
 }

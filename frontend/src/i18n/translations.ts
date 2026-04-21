@@ -7,6 +7,7 @@ const translations = {
     employees: 'Employés',
     reports: 'Rapports',
     documents: 'Documents Administratifs',
+    archives: 'Rapports Archivés',
     users: 'Utilisateurs',
     settings: 'Paramètres',
     logout: 'Déconnexion'
@@ -20,6 +21,7 @@ const translations = {
     employees: 'Employees',
     reports: 'Reports',
     documents: 'Administrative Documents',
+    archives: 'Archived Reports',
     users: 'Users',
     settings: 'Settings',
     logout: 'Logout'
