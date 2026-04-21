@@ -98,7 +98,7 @@ export default function LoginPage() {
         
         <div className="login-footer-info">
           <p>Compte par défaut : admin@saphir.cd / admin123</p>
-          <p className="mt-2 opacity-50">&copy; 2026 Saphir Group. Tous droits réservés.</p>
+          <p className="mt-2 opacity-50">&copy; 2026 Saphir Group. v4.2-premium-locked</p>
         </div>
       </motion.div>
     </div>
