@@ -62,7 +62,9 @@ if (process.env.NODE_ENV === 'production') {
   }
 
   app.use(express.static(distPath));
-  app.get('*', (req, res) => {
+  app.use((req, res, next) => {
+    // Ne pas intercepter les appels API qui n'auraient pas matché
+    if (req.path.startsWith('/api/')) return next();
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
