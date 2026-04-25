@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
@@ -47,7 +48,7 @@ export default function Projects() {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       setModal(false);
     },
-    onError: (e: any) => {
+    onError: (e: AxiosError<{error: string}>) => {
       alert(e.response?.data?.error || 'Erreur lors de l\'enregistrement');
     }
   });

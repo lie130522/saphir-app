@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import PageTransition from './components/PageTransition';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthProvider';
 import { useAuth } from './contexts/useAuth';
 
 import LoginPage from './pages/Login';
@@ -16,7 +16,7 @@ import RapportsArchives from './pages/RapportsArchives';
 import Documents from './pages/Documents';
 import Settings from './pages/Settings';
 import Users from './pages/Users';
-import { SettingsProvider } from './contexts/SettingsContext';
+import { SettingsProvider } from './contexts/SettingsProvider';
 
 function ProtectedRoute({ children, reqRole }: { children: React.ReactNode, reqRole?: string }) {
   const { token, isAdmin } = useAuth();

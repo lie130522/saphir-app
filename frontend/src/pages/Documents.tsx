@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { AxiosError } from 'axios';
 import { motion } from 'framer-motion';
 import Layout from '../components/Layout/Layout';
 import API from '../api/client';
@@ -35,7 +36,7 @@ export default function Documents() {
       queryClient.invalidateQueries({ queryKey: ['documents-admin'] });
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
-    onError: (err: any) => {
+    onError: (err: AxiosError<{error: string}>) => {
       alert(err.response?.data?.error || 'Erreur lors de l\'upload');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }

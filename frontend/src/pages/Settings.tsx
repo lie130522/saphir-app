@@ -8,6 +8,7 @@ import { useSettings } from '../contexts/useSettings';
 import { useNavigate } from 'react-router-dom';
 import type { CompanySettings, Transaction } from '../types';
 import { formatMoney, formatDate } from '../utils/formatters';
+import type { AxiosError } from 'axios';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -51,17 +52,28 @@ export default function Settings() {
 
   useEffect(() => {
     if (user) {
-      setProfilForm({
-        nom: user.nom || '',
-        email: user.email || '',
-        telephone: user.telephone || ''
+      setProfilForm(prev => {
+        if (prev.nom === (user.nom || '') && 
+            prev.email === (user.email || '') && 
+            prev.telephone === (user.telephone || '')) {
+          return prev;
+        }
+        return {
+          nom: user.nom || '',
+          email: user.email || '',
+          telephone: user.telephone || ''
+        };
       });
     }
   }, [user]);
 
   useEffect(() => {
     if (companyData) {
-      setCompanySettings(prev => ({ ...prev, ...companyData }));
+      setCompanySettings(prev => {
+        const isSame = Object.keys(companyData).every(k => prev[k] === companyData[k]);
+        if (isSame) return prev;
+        return { ...prev, ...companyData };
+      });
     }
   }, [companyData]);
 
@@ -71,13 +83,13 @@ export default function Settings() {
       loadUser();
       alert(language === 'fr' ? 'Profil mis à jour' : 'Profile updated');
     },
-    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+    onError: (err: AxiosError<{error: string}>) => alert(err.response?.data?.error || 'Erreur')
   });
 
   const updateCompanyMutation = useMutation({
     mutationFn: (data: CompanySettings) => API.post('/settings', data),
     onSuccess: () => alert(language === 'fr' ? 'Paramètres société enregistrés' : 'Company settings saved'),
-    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+    onError: (err: AxiosError<{error: string}>) => alert(err.response?.data?.error || 'Erreur')
   });
 
   const requestOtpMutation = useMutation({
@@ -86,11 +98,11 @@ export default function Settings() {
       setShowOtpInput(true);
       alert(language === 'fr' ? 'Code de vérification envoyé à votre e-mail actuel' : 'Verification code sent to your current email');
     },
-    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+    onError: (err: AxiosError<{error: string}>) => alert(err.response?.data?.error || 'Erreur')
   });
 
   const verifyUpdateMutation = useMutation({
-    mutationFn: (data: any) => API.post('/auth/verify-update', data),
+    mutationFn: (data: { code: string; newEmail?: string; newPassword?: string; newNom?: string; newTelephone?: string }) => API.post('/auth/verify-update', data),
     onSuccess: () => {
       alert(language === 'fr' ? 'Compte mis à jour avec succès' : 'Account updated successfully');
       setShowOtpInput(false);
@@ -98,7 +110,7 @@ export default function Settings() {
       setOtpCode('');
       loadUser();
     },
-    onError: (err: any) => alert(err.response?.data?.error || 'Erreur')
+    onError: (err: AxiosError<{error: string}>) => alert(err.response?.data?.error || 'Erreur')
   });
 
   const resetMutation = useMutation({
@@ -108,7 +120,7 @@ export default function Settings() {
       setResetConfirm('');
       navigate('/');
     },
-    onError: (err: any) => alert(err.response?.data?.error || 'Erreur lors de la réinitialisation')
+    onError: (err: AxiosError<{error: string}>) => alert(err.response?.data?.error || 'Erreur lors de la réinitialisation')
   });
 
   const handleUpdateProfil = (e: React.FormEvent) => {
